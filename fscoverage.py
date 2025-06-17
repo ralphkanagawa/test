@@ -210,7 +210,7 @@ else:
     # ---------------------------------------------------------------------
 
     with st.expander("🛠️ Añadir datos en bloque (todas las filas)"):
-    editable_cols = [c for c in st.session_state.df.columns if c not in PROTECTED_COLUMNS]
+      editable_cols = [c for c in st.session_state.df.columns if c not in PROTECTED_COLUMNS]
       if editable_cols:
         col_to_edit = st.selectbox("Selecciona columna", editable_cols, key="block_col")
           if col_to_edit:
