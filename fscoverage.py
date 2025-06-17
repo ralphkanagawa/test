@@ -96,7 +96,7 @@ if "df" not in st.session_state:
 ) = load_config()
 
 st.set_page_config(page_title="Work Orders Tool", layout="wide")
-st.title("📋 Potential Work Orders Management (Streamlit)")
+st.title("Potential Work Orders Management (Streamlit)")
 
 # -----------------------------------------------------------------------------
 # File uploaders
@@ -105,10 +105,10 @@ st.title("📋 Potential Work Orders Management (Streamlit)")
 col1, col2 = st.columns(2)
 
 with col1:
-    geo_file = st.file_uploader("📍 Subir Georadar CSV", type="csv", key="geo")
+    geo_file = st.file_uploader("📍 Upload Georadar CSV", type="csv", key="geo")
 
 with col2:
-    cov_file = st.file_uploader("📶 Subir Coverage CSV", type="csv", key="cov")
+    cov_file = st.file_uploader("📶 Upload Coverage CSV", type="csv", key="cov")
 
 # -----------------------------------------------------------------------------
 # Helpers for data processing
@@ -117,7 +117,7 @@ with col2:
 def load_georadar(csv_bytes: bytes) -> None:
     df = pd.read_csv(io.BytesIO(csv_bytes))
     if not {"Latitud", "Longitud"}.issubset(df.columns):
-        st.error("El CSV debe contener las columnas 'Latitud' y 'Longitud'.")
+        st.error("CSV file must contain columns 'Latitud' y 'Longitud'.")
         return
 
     st.session_state.df = df.rename(
@@ -128,18 +128,18 @@ def load_georadar(csv_bytes: bytes) -> None:
     st.session_state.df["Billing Account - Work Order"] = "ANER_Senegal"
     st.session_state.df["Work Order Type - Work Order"] = "Installation"
 
-    st.success("Coordenadas añadidas con éxito ✅")
+    st.success("Coords updated successfully ✅")
 
 
 def load_coverage(csv_bytes: bytes) -> None:
     if st.session_state.df.empty:
-        st.warning("Primero sube el CSV de Georadar.")
+        st.warning("First upload the Georadar file.")
         return
 
     cov_df = pd.read_csv(io.BytesIO(csv_bytes))
     required = {"Latitud", "Longitud", "RSSI / RSCP (dBm)"}
     if not required.issubset(cov_df.columns):
-        st.error("El CSV de cobertura debe contener Latitud, Longitud y RSSI / RSCP (dBm).")
+        st.error("Coverage CSV file must contain Latitud, Longitud and RRSI / RSCP (dBm).")
         return
 
     # Binning to 1e‑10 deg for matching
@@ -163,7 +163,7 @@ def load_coverage(csv_bytes: bytes) -> None:
     st.session_state.df["Gateway"] = st.session_state.df["dBm"].apply(classify)
     st.session_state.df.drop(columns=["LatBin", "LonBin"], inplace=True)
 
-    st.success("Cobertura procesada y aplicada ✅")
+    st.success("Coverage processed and applied ✅")
 
 
 # -----------------------------------------------------------------------------
@@ -179,9 +179,9 @@ if geo_file is not None and cov_file is not None:
 # -----------------------------------------------------------------------------
 
 if st.session_state.df.empty:
-    st.info("Sube un CSV para comenzar.")
+    st.info("Upload a CSV to start.")
 else:
-    st.subheader("📑 Vista y edición de la tabla")
+    st.subheader("📑 View and table edition")
 
     # Creamos una copia temporal para la edición
     if "edited_df" not in st.session_state:
@@ -196,10 +196,10 @@ else:
     )
 
     # Botón explícito para aplicar cambios
-    if st.button("✅ Aplicar cambios a la tabla principal"):
+    if st.button("✅ Apply changes to the table"):
         st.session_state.df = result_df.copy()
         st.session_state.edited_df = result_df.copy()
-        st.success("Cambios aplicados.")
+        st.success("Changes applied.")
 
     # ---------------------------------------------------------------------
     # Bloque: añadir datos en una columna
@@ -211,7 +211,7 @@ else:
     # Guardar / descargar Excel
     # ---------------------------------------------------------------------
 
-    st.subheader("💾 Guardar / Descargar Excel")
+    st.subheader("💾 Save / Download Excel")
     col_date, col_time = st.columns(2)
     with col_date:
         date_input: date = st.date_input("Fecha inicial", value=date.today(), key="start_date")
