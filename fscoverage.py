@@ -170,11 +170,8 @@ def load_coverage(csv_bytes: bytes) -> None:
 # Trigger processing on upload
 # -----------------------------------------------------------------------------
 
-if geo_file is not None and geo_file.name not in st.session_state.get("_geo_loaded", ""):
-    load_georadar(geo_file.getvalue())
-    st.session_state._geo_loaded = geo_file.name
-
 if geo_file is not None and cov_file is not None:
+    load_georadar(geo_file.getvalue())
     load_coverage(cov_file.getvalue())
 
 # -----------------------------------------------------------------------------
