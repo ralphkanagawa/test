@@ -192,7 +192,8 @@ else:
         use_container_width=True,
         key="editor",
     )
-    st.session_state.df = edited_df  # keep edits
+    if not edited_df.equals(st.session_state.df):
+    st.session_state.df = edited_df
 
     # ---------------------------------------------------------------------
     # Bloque: añadir datos en una columna
