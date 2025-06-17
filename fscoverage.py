@@ -174,9 +174,8 @@ if geo_file is not None and geo_file.name not in st.session_state.get("_geo_load
     load_georadar(geo_file.getvalue())
     st.session_state._geo_loaded = geo_file.name
 
-if cov_file is not None and cov_file.name not in st.session_state.get("_cov_loaded", ""):
+if geo_file is not None and cov_file is not None:
     load_coverage(cov_file.getvalue())
-    st.session_state._cov_loaded = cov_file.name
 
 # -----------------------------------------------------------------------------
 # Data editor (granular editing)
