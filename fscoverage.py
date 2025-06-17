@@ -209,21 +209,21 @@ else:
     # Bloque: añadir datos en una columna
     # ---------------------------------------------------------------------
 
-    #with st.expander("🛠️ Añadir datos en bloque (todas las filas)"):
-     #   editable_cols = [c for c in st.session_state.df.columns if c not in PROTECTED_COLUMNS]
-      #  if editable_cols:
-       #     col_to_edit = st.selectbox("Selecciona columna", editable_cols, key="block_col")
-        #    if col_to_edit:
-         #       if col_to_edit in DROPDOWN_VALUES:
-          #          value = st.selectbox("Valor a aplicar", DROPDOWN_VALUES[col_to_edit], key="block_val")
-           #     else:
-            #        value = st.text_input("Valor a aplicar", key="block_val_text")
+    with st.expander("🛠️ Añadir datos en bloque (todas las filas)"):
+        editable_cols = [c for c in st.session_state.df.columns if c not in PROTECTED_COLUMNS]
+        if editable_cols:
+           col_to_edit = st.selectbox("Selecciona columna", editable_cols, key="block_col")
+            if col_to_edit:
+                if col_to_edit in DROPDOWN_VALUES:
+                    value = st.selectbox("Valor a aplicar", DROPDOWN_VALUES[col_to_edit], key="block_val")
+                else:
+                    value = st.text_input("Valor a aplicar", key="block_val_text")
 
-             #   if st.button("Aplicar a todas las filas", key="apply_block") and value != "":
-              #      st.session_state.df[col_to_edit] = value
-               #     st.success(f"Valor '{value}' aplicado en la columna '{col_to_edit}'.")
-        #else:
-         #   st.warning("No hay columnas editables.")
+                if st.button("Aplicar a todas las filas", key="apply_block") and value != "":
+                    st.session_state.df[col_to_edit] = value
+                   st.success(f"Valor '{value}' aplicado en la columna '{col_to_edit}'.")
+        else:
+            st.warning("No hay columnas editables.")
 
     # ---------------------------------------------------------------------
     # Guardar / descargar Excel
