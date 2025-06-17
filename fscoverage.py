@@ -192,8 +192,18 @@ else:
         use_container_width=True,
         key="editor",
     )
-    if not edited_df.equals(st.session_state.df):
+    import hashlib
+
+    def df_hash(df: pd.DataFrame) -> str:
+      return hashlib.md5(pd.util.hash_pandas_object(df, index=True).values).hexdigest()
+
+    if "df_hash" not in st.session_state:
+      st.session_state.df_hash = df_hash(st.session_state.df)
+
+    current_hash = df_hash(edited_df)
+    if current_hash != st.session_state.df_hash:
       st.session_state.df = edited_df
+      st.session_state.df_hash = current_hash
 
     # ---------------------------------------------------------------------
     # Bloque: añadir datos en una columna
