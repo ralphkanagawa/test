@@ -193,7 +193,7 @@ else:
         key="editor",
     )
     if not edited_df.equals(st.session_state.df):
-    st.session_state.df = edited_df
+      st.session_state.df = edited_df
 
     # ---------------------------------------------------------------------
     # Bloque: añadir datos en una columna
