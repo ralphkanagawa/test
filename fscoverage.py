@@ -186,24 +186,24 @@ if st.session_state.df.empty:
     st.info("Sube un CSV para comenzar.")
 else:
     st.subheader("📑 Vista y edición de la tabla")
-    edited_df = st.data_editor(
-        st.session_state.df,
+
+    # Creamos una copia temporal para la edición
+    if "edited_df" not in st.session_state:
+        st.session_state.edited_df = st.session_state.df.copy()
+
+    # Editor de tabla
+    result_df = st.data_editor(
+        st.session_state.edited_df,
         num_rows="dynamic",
         use_container_width=True,
-        key="editor",
+        key="editor"
     )
-    import hashlib
 
-    def df_hash(df: pd.DataFrame) -> str:
-      return hashlib.md5(pd.util.hash_pandas_object(df, index=True).values).hexdigest()
-
-    if "df_hash" not in st.session_state:
-      st.session_state.df_hash = df_hash(st.session_state.df)
-
-    current_hash = df_hash(edited_df)
-    if current_hash != st.session_state.df_hash:
-      st.session_state.df = edited_df
-      st.session_state.df_hash = current_hash
+    # Botón explícito para aplicar cambios
+    if st.button("✅ Aplicar cambios a la tabla principal"):
+        st.session_state.df = result_df.copy()
+        st.session_state.edited_df = result_df.copy()
+        st.success("Cambios aplicados.")
 
     # ---------------------------------------------------------------------
     # Bloque: añadir datos en una columna
