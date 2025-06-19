@@ -67,6 +67,8 @@ def load_config(path: str = "config.ini") -> tuple[
         for parent in cfg["PARENT_CHILD_RELATIONS"]:
             parent_child_map[parent] = [x.strip() for x in cfg.get("PARENT_CHILD_RELATIONS", parent).split(",")]
 
+    excel_template_path = _safe_get(cfg, "GENERAL", "excel_template_path", "test.xlsx")
+
     return (
         protected_columns,
         dropdown_values,
@@ -74,7 +76,7 @@ def load_config(path: str = "config.ini") -> tuple[
         base_save_path,
         parent_child_map,
         excel_autoload_path,
-        excel_template_path,
+        excel_template_path
     )
 
 
