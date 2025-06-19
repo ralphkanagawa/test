@@ -226,6 +226,31 @@ else:
         st.session_state.df = result_df.copy()
         st.session_state.edited_df = result_df.copy()
         st.success("Changes applied.")
+
+    # ---------------------------------------------------------------------
+    # Bloque: añadir datos en una columna
+    # ---------------------------------------------------------------------
+    st.subheader("🧩 Añadir datos en bloque")
+    
+    with st.expander("➕ Añadir un valor a toda una columna"):
+        editable_columns = [col for col in st.session_state.edited_df.columns if col not in PROTECTED_COLUMNS]
+    
+        selected_column = st.selectbox("Selecciona columna:", editable_columns, key="block_col_selector")
+    
+        # Si hay valores predefinidos desde config.ini, los usamos como dropdown
+        predefined_values = DROPDOWN_VALUES.get(selected_column, [])
+        if predefined_values:
+            value_to_apply = st.selectbox("Selecciona valor a aplicar:", predefined_values, key="block_value_selector")
+        else:
+            value_to_apply = st.text_input("Escribe el valor a aplicar:", key="block_value_input")
+    
+        if st.button("📌 Aplicar valor a columna"):
+            if selected_column and value_to_apply:
+                st.session_state.edited_df[selected_column] = value_to_apply
+                st.success(f"Se aplicó '{value_to_apply}' a la columna '{selected_column}'.")
+            else:
+                st.error("Debes seleccionar una columna y un valor válidos.")
+
       
     # ---------------------------------------------------------------------
     # Guardar / descargar Excel
