@@ -107,6 +107,7 @@ if "df" not in st.session_state:
     BASE_SAVE_PATH,
     PARENT_CHILD_MAP,
     EXCEL_AUTOLOAD,
+    EXCEL_TEMPLATE_PATH,
 ) = load_config()
 
 st.set_page_config(page_title="Work Orders Tool", layout="wide")
@@ -261,7 +262,7 @@ if st.button("Generar y descargar Excel", key="save_excel"):
         out = io.BytesIO()
 
         # 👉 Insertar aquí el uso de la plantilla
-        template_columns = load_excel_template_columns(excel_template_path)
+        template_columns = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
         df_to_save = st.session_state.df.copy()
 
         for col in template_columns:
