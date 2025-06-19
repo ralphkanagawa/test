@@ -204,15 +204,12 @@ else:
         st.success("Changes applied.")
 
     # ---------------------------------------------------------------------
-    # Bloque: añadir datos en una columna
+    # Bloque: añadir datos en una columna (pendiente de implementación)
     # ---------------------------------------------------------------------
-
-
 
     # ---------------------------------------------------------------------
     # Guardar / descargar Excel
     # ---------------------------------------------------------------------
-
     st.subheader("💾 Save / Download Excel")
     col_date, col_time = st.columns(2)
     with col_date:
@@ -221,80 +218,74 @@ else:
         time_input: time = st.time_input("Hora inicial", value=datetime.now().time().replace(second=0, microsecond=0), key="start_time")
 
     if st.button("Generar y descargar Excel", key="save_excel"):
+        # 3-A. Calcula fechas / horas como hasta ahora
+        start_dt = datetime.combine(date_input, time_input)
+        increments = [start_dt + timedelta(minutes=27 * i) for i in range(len(st.session_state.df))]
 
-    # 3-A. Calcula fechas / horas como hasta ahora
-    start_dt = datetime.combine(date_input, time_input)
-    increments = [start_dt + timedelta(minutes=27 * i) for i in range(len(st.session_state.df))]
+        full_dt_cols = [
+            "Promised window From - Work Order",
+            "Promised window To - Work Order",
+            "StartTime - Bookable Resource Booking",
+            "EndTime - Bookable Resource Booking",
+        ]
+        time_only_cols = [
+            "Time window From - Work Order",
+            "Time window To - Work Order",
+        ]
 
-    full_dt_cols = [
-        "Promised window From - Work Order",
-        "Promised window To - Work Order",
-        "StartTime - Bookable Resource Booking",
-        "EndTime - Bookable Resource Booking",
-    ]
-    time_only_cols = [
-        "Time window From - Work Order",
-        "Time window To - Work Order",
-    ]
+        for col in full_dt_cols:
+            if col in st.session_state.df.columns:
+                st.session_state.df[col] = increments
+        for col in time_only_cols:
+            if col in st.session_state.df.columns:
+                st.session_state.df[col] = [d.time().strftime("%H:%M:%S") for d in increments]
 
-    for col in full_dt_cols:
-        if col in st.session_state.df.columns:
-            st.session_state.df[col] = increments
-    for col in time_only_cols:
-        if col in st.session_state.df.columns:
-            st.session_state.df[col] = [d.time().strftime("%H:%M:%S") for d in increments]
+        # 3-B. Comprobación de obligatorias
+        missing = [
+            c for c in REQUIRED_COLUMNS
+            if c in st.session_state.df.columns and st.session_state.df[c].isna().any()
+        ]
+        if missing:
+            st.error("Faltan datos en las columnas obligatorias:\n" + "\n".join(missing))
+            st.stop()
 
-    # 3-B. Comprobación de obligatorias
-    missing = [
-        c for c in REQUIRED_COLUMNS
-        if c in st.session_state.df.columns and st.session_state.df[c].isna().any()
-    ]
-    if missing:
-        st.error("Faltan datos en las columnas obligatorias:\n" + "\n".join(missing))
-        st.stop()
+        # 3-C. NUEVO: volcar datos sobre la plantilla
+        from openpyxl import load_workbook
+        from openpyxl.utils.dataframe import dataframe_to_rows
 
-    # 3-C. ------------- NUEVO: volcar datos sobre la plantilla -------------
-    from openpyxl import load_workbook
-    from openpyxl.utils.dataframe import dataframe_to_rows
+        # Cargar plantilla
+        wb = load_workbook(EXCEL_TEMPLATE)
+        ws = wb.active  # O especifica ws = wb["NombreDeLaHoja"] si es necesario
 
-    # -- Cargar plantilla
-    wb = load_workbook(EXCEL_TEMPLATE)
-    ws = wb.active                       # o wb["NombreHoja"] si la plantilla tiene varias
+        # Leer cabecera de la plantilla
+        template_cols = [cell.value for cell in next(ws.iter_rows(max_row=1))]
+        df_out = st.session_state.df.copy()
 
-    # -- Leer cabecera de la plantilla para determinar el orden deseado
-    template_cols = [cell.value for cell in next(ws.iter_rows(max_row=1))]
-    df_out = st.session_state.df.copy()
+        # Reordenar y crear columnas faltantes
+        for col in template_cols:
+            if col not in df_out.columns:
+                df_out[col] = ""
+        df_out = df_out[template_cols]
 
-    # -- Reordenar/añadir columnas según plantilla
-    for col in template_cols:
-        if col not in df_out.columns:
-            df_out[col] = ""            # crea vacía si no existe
-    df_out = df_out[template_cols]       # aplica el orden exacto
+        # Borrar filas antiguas, conservar encabezado
+        ws.delete_rows(2, ws.max_row)
 
-    # -- Vaciar las filas antiguas (opcional: mantiene estilos)
-    ws.delete_rows(2, ws.max_row)
+        # Insertar los datos nuevos
+        for r_idx, row in enumerate(dataframe_to_rows(df_out, index=False, header=False), start=2):
+            for c_idx, value in enumerate(row, start=1):
+                ws.cell(row=r_idx, column=c_idx, value=value)
 
-    # -- Escribir DataFrame manteniendo formatos de encabezado
-    for r_idx, row in enumerate(dataframe_to_rows(df_out, index=False, header=False), start=2):
-        for c_idx, value in enumerate(row, start=1):
-            ws.cell(row=r_idx, column=c_idx, value=value)
+        # Guardar y descargar
+        out = io.BytesIO()
+        wb.save(out)
+        out.seek(0)
 
-    # 3-D. Guardar en memoria y descargar
-    out = io.BytesIO()
-    wb.save(out)
-    out.seek(0)
+        timestamp = start_dt.strftime("%Y%m%d_%H%M%S")
+        file_name = f"datos_{timestamp}.xlsx"
+        st.download_button(
+            "⬇️ Descargar Excel",
+            data=out,
+            file_name=file_name,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
 
-    timestamp = start_dt.strftime("%Y%m%d_%H%M%S")
-    file_name = f"datos_{timestamp}.xlsx"
-    st.download_button(
-        "⬇️ Descargar Excel",
-        data=out,
-        file_name=file_name,
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
-  
-# -----------------------------------------------------------------------------
-# Footer
-# -----------------------------------------------------------------------------
-
-st.caption("Desarrollado en Streamlit • Última actualización: 2025‑06‑17")
