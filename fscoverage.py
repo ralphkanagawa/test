@@ -239,6 +239,7 @@ else:
         time_input: time = st.time_input("Hora inicial", value=datetime.now().time().replace(second=0, microsecond=0), key="start_time")
 
 if st.button("Generar y descargar Excel", key="save_excel"):
+    df_to_save = result_df.copy()
     start_dt = datetime.combine(date_input, time_input)
     increments = [start_dt + timedelta(minutes=27 * i) for i in range(len(st.session_state.df))]
 
@@ -268,7 +269,7 @@ if st.button("Generar y descargar Excel", key="save_excel"):
 
         # 👉 Insertar aquí el uso de la plantilla
         template_columns = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
-        df_to_save = st.session_state.df.copy()
+        df_to_save = st.session_state.edited_df.copy()
 
         for col in template_columns:
             if col not in df_to_save.columns:
