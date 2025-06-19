@@ -41,6 +41,17 @@ def _safe_get(config: configparser.ConfigParser, section: str, option: str, defa
     except (configparser.NoSectionError, configparser.NoOptionError):
         return default
 
+def load_excel_template_columns(path: str) -> List[str]:
+    if not os.path.exists(path):
+        st.warning(f"Excel template not found at: {path}")
+        return []
+    try:
+        template_df = pd.read_excel(path, engine="openpyxl")
+        return template_df.columns.tolist()
+    except Exception as e:
+        st.error(f"Error loading Excel template: {e}")
+        return []
+
 
 def load_config(path: str = "config.ini") -> tuple[
     List[str], Dict[str, List[str]], List[str], str, Dict[str, List[str]], str
@@ -66,7 +77,9 @@ def load_config(path: str = "config.ini") -> tuple[
     if cfg.has_section("PARENT_CHILD_RELATIONS"):
         for parent in cfg["PARENT_CHILD_RELATIONS"]:
             parent_child_map[parent] = [x.strip() for x in cfg.get("PARENT_CHILD_RELATIONS", parent).split(",")]
-
+          
+    excel_template_path = _safe_get(cfg, "GENERAL", "excel_template_path", "test.xlsx")
+  
     return (
         protected_columns,
         dropdown_values,
@@ -74,6 +87,7 @@ def load_config(path: str = "config.ini") -> tuple[
         base_save_path,
         parent_child_map,
         excel_autoload_path,
+        excel_template_path
     )
 
 
@@ -218,39 +232,52 @@ else:
     with col_time:
         time_input: time = st.time_input("Hora inicial", value=datetime.now().time().replace(second=0, microsecond=0), key="start_time")
 
-    if st.button("Generar y descargar Excel", key="save_excel"):
-        start_dt = datetime.combine(date_input, time_input)
-        increments = [start_dt + timedelta(minutes=27 * i) for i in range(len(st.session_state.df))]
+if st.button("Generar y descargar Excel", key="save_excel"):
+    start_dt = datetime.combine(date_input, time_input)
+    increments = [start_dt + timedelta(minutes=27 * i) for i in range(len(st.session_state.df))]
 
-        full_dt_cols = [
-            "Promised window From - Work Order",
-            "Promised window To - Work Order",
-            "StartTime - Bookable Resource Booking",
-            "EndTime - Bookable Resource Booking",
-        ]
-        time_only_cols = [
-            "Time window From - Work Order",
-            "Time window To - Work Order",
-        ]
+    full_dt_cols = [
+        "Promised window From - Work Order",
+        "Promised window To - Work Order",
+        "StartTime - Bookable Resource Booking",
+        "EndTime - Bookable Resource Booking",
+    ]
+    time_only_cols = [
+        "Time window From - Work Order",
+        "Time window To - Work Order",
+    ]
 
-        for col in full_dt_cols:
-            if col in st.session_state.df.columns:
-                st.session_state.df[col] = increments
-        for col in time_only_cols:
-            if col in st.session_state.df.columns:
-                st.session_state.df[col] = [d.time().strftime("%H:%M:%S") for d in increments]
+    for col in full_dt_cols:
+        if col in st.session_state.df.columns:
+            st.session_state.df[col] = increments
+    for col in time_only_cols:
+        if col in st.session_state.df.columns:
+            st.session_state.df[col] = [d.time().strftime("%H:%M:%S") for d in increments]
 
-        missing = [c for c in REQUIRED_COLUMNS if c in st.session_state.df.columns and st.session_state.df[c].isna().any()]
-        if missing:
-            st.error("Faltan datos en las columnas obligatorias:\n" + "\n".join(missing))
-        else:
-            out = io.BytesIO()
-            with pd.ExcelWriter(out, engine="openpyxl") as writer:
-                st.session_state.df.to_excel(writer, index=False)
-            out.seek(0)
-            timestamp = start_dt.strftime("%Y%m%d_%H%M%S")
-            file_name = f"datos_{timestamp}.xlsx"
-            st.download_button("⬇️ Descargar Excel", data=out, file_name=file_name, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    missing = [c for c in REQUIRED_COLUMNS if c in st.session_state.df.columns and st.session_state.df[c].isna().any()]
+    if missing:
+        st.error("Faltan datos en las columnas obligatorias:\n" + "\n".join(missing))
+    else:
+        out = io.BytesIO()
+
+        # 👉 Insertar aquí el uso de la plantilla
+        template_columns = load_excel_template_columns(excel_template_path)
+        df_to_save = st.session_state.df.copy()
+
+        for col in template_columns:
+            if col not in df_to_save.columns:
+                df_to_save[col] = ""
+
+        df_to_save = df_to_save[template_columns]
+
+        with pd.ExcelWriter(out, engine="openpyxl") as writer:
+            df_to_save.to_excel(writer, index=False)
+
+        out.seek(0)
+        timestamp = start_dt.strftime("%Y%m%d_%H%M%S")
+        file_name = f"datos_{timestamp}.xlsx"
+        st.download_button("⬇️ Descargar Excel", data=out, file_name=file_name, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 # -----------------------------------------------------------------------------
 # Footer
