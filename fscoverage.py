@@ -189,20 +189,31 @@ if geo_file is not None and cov_file is not None:
     load_georadar(geo_file.getvalue())
     load_coverage(cov_file.getvalue())
 
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 # Data editor (granular editing)
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 
 if st.session_state.df.empty:
     st.info("Upload a CSV to start.")
 else:
     st.subheader("📑 View and table edition")
 
-    # Creamos una copia temporal para la edición
-    if "edited_df" not in st.session_state:
-        st.session_state.edited_df = st.session_state.df.copy()
+    # Cargar columnas desde la plantilla Excel
+    template_columns = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
+    df = st.session_state.df.copy()
 
-    # Editor de tabla
+    # Añadir columnas faltantes y reordenar según la plantilla
+    for col in template_columns:
+        if col not in df.columns:
+            df[col] = ""
+
+    df = df[template_columns]  # Reordenar columnas
+
+    # Guardamos como editable (solo la primera vez o si se ha borrado)
+    if "edited_df" not in st.session_state or st.session_state.edited_df.empty:
+        st.session_state.edited_df = df.copy()
+
+    # Editor de tabla interactivo
     result_df = st.data_editor(
         st.session_state.edited_df,
         num_rows="dynamic",
@@ -210,18 +221,12 @@ else:
         key="editor"
     )
 
-    # Botón explícito para aplicar cambios
+    # Botón para aplicar los cambios hechos en la tabla
     if st.button("✅ Apply changes to the table"):
         st.session_state.df = result_df.copy()
         st.session_state.edited_df = result_df.copy()
         st.success("Changes applied.")
-
-    # ---------------------------------------------------------------------
-    # Bloque: añadir datos en una columna
-    # ---------------------------------------------------------------------
-
-
-
+      
     # ---------------------------------------------------------------------
     # Guardar / descargar Excel
     # ---------------------------------------------------------------------
