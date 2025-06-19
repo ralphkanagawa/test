@@ -3,19 +3,19 @@ Streamlit version of the Potential Work Orders tool.
 ---------------------------------------------------
 - Replaces all Tk/ttkbootstrap UI with Streamlit widgets.
 - Keeps the core data‑processing logic (load CSVs, match coverage, bulk add, granular editing, save to Excel).
-- Persists the working DataFrame in `st.session_state` so users can perform many actions without losing data.
-- Gracefully handles the absence of `config.ini` by falling back to sensible defaults, avoiding the previous
-  `configparser.NoSectionError`.
-- Uses `st.date_input` + `st.time_input` instead of the non‑existent `st.datetime_input` to fix the AttributeError.
+- Persists the working DataFrame in st.session_state so users can perform many actions without losing data.
+- Gracefully handles the absence of config.ini by falling back to sensible defaults, avoiding the previous
+  configparser.NoSectionError.
+- Uses st.date_input + st.time_input instead of the non‑existent st.datetime_input to fix the AttributeError.
 - Provides a "Añadir datos en bloque" expander with a column selector that populates correctly.
 
 How to run locally
 ------------------
-```bash
+bash
 pip install -r requirements.txt  # streamlit pandas openpyxl folium (optional)
 streamlit run streamlit_app.py
-```
-On Streamlit Cloud push this file and a `requirements.txt` (see above) to GitHub and Deploy.
+
+On Streamlit Cloud push this file and a requirements.txt (see above) to GitHub and Deploy.
 """
 
 from __future__ import annotations
@@ -67,8 +67,6 @@ def load_config(path: str = "config.ini") -> tuple[
         for parent in cfg["PARENT_CHILD_RELATIONS"]:
             parent_child_map[parent] = [x.strip() for x in cfg.get("PARENT_CHILD_RELATIONS", parent).split(",")]
 
-    excel_template_path = _safe_get(cfg, "GENERAL", "excel_template_path", "test.xlsx")
-
     return (
         protected_columns,
         dropdown_values,
@@ -76,7 +74,6 @@ def load_config(path: str = "config.ini") -> tuple[
         base_save_path,
         parent_child_map,
         excel_autoload_path,
-        excel_template_path
     )
 
 
@@ -96,7 +93,6 @@ if "df" not in st.session_state:
     BASE_SAVE_PATH,
     PARENT_CHILD_MAP,
     EXCEL_AUTOLOAD,
-    EXCEL_TEMPLATE,
 ) = load_config()
 
 st.set_page_config(page_title="Work Orders Tool", layout="wide")
@@ -206,12 +202,15 @@ else:
         st.success("Changes applied.")
 
     # ---------------------------------------------------------------------
-    # Bloque: añadir datos en una columna (pendiente de implementación)
+    # Bloque: añadir datos en una columna
     # ---------------------------------------------------------------------
+
+
 
     # ---------------------------------------------------------------------
     # Guardar / descargar Excel
     # ---------------------------------------------------------------------
+
     st.subheader("💾 Save / Download Excel")
     col_date, col_time = st.columns(2)
     with col_date:
@@ -220,7 +219,6 @@ else:
         time_input: time = st.time_input("Hora inicial", value=datetime.now().time().replace(second=0, microsecond=0), key="start_time")
 
     if st.button("Generar y descargar Excel", key="save_excel"):
-        # 3-A. Calcula fechas / horas como hasta ahora
         start_dt = datetime.combine(date_input, time_input)
         increments = [start_dt + timedelta(minutes=27 * i) for i in range(len(st.session_state.df))]
 
@@ -242,52 +240,20 @@ else:
             if col in st.session_state.df.columns:
                 st.session_state.df[col] = [d.time().strftime("%H:%M:%S") for d in increments]
 
-        # 3-B. Comprobación de obligatorias
-        missing = [
-            c for c in REQUIRED_COLUMNS
-            if c in st.session_state.df.columns and st.session_state.df[c].isna().any()
-        ]
+        missing = [c for c in REQUIRED_COLUMNS if c in st.session_state.df.columns and st.session_state.df[c].isna().any()]
         if missing:
             st.error("Faltan datos en las columnas obligatorias:\n" + "\n".join(missing))
-            st.stop()
+        else:
+            out = io.BytesIO()
+            with pd.ExcelWriter(out, engine="openpyxl") as writer:
+                st.session_state.df.to_excel(writer, index=False)
+            out.seek(0)
+            timestamp = start_dt.strftime("%Y%m%d_%H%M%S")
+            file_name = f"datos_{timestamp}.xlsx"
+            st.download_button("⬇️ Descargar Excel", data=out, file_name=file_name, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-        # 3-C. NUEVO: volcar datos sobre la plantilla
-        from openpyxl import load_workbook
-        from openpyxl.utils.dataframe import dataframe_to_rows
+# -----------------------------------------------------------------------------
+# Footer
+# -----------------------------------------------------------------------------
 
-        # Cargar plantilla
-        wb = load_workbook(EXCEL_TEMPLATE)
-        ws = wb.active  # O especifica ws = wb["NombreDeLaHoja"] si es necesario
-
-        # Leer cabecera de la plantilla
-        template_cols = [cell.value for cell in next(ws.iter_rows(max_row=1))]
-        df_out = st.session_state.df.copy()
-
-        # Reordenar y crear columnas faltantes
-        for col in template_cols:
-            if col not in df_out.columns:
-                df_out[col] = ""
-        df_out = df_out[template_cols]
-
-        # Borrar filas antiguas, conservar encabezado
-        ws.delete_rows(2, ws.max_row)
-
-        # Insertar los datos nuevos
-        for r_idx, row in enumerate(dataframe_to_rows(df_out, index=False, header=False), start=2):
-            for c_idx, value in enumerate(row, start=1):
-                ws.cell(row=r_idx, column=c_idx, value=value)
-
-        # Guardar y descargar
-        out = io.BytesIO()
-        wb.save(out)
-        out.seek(0)
-
-        timestamp = start_dt.strftime("%Y%m%d_%H%M%S")
-        file_name = f"datos_{timestamp}.xlsx"
-        st.download_button(
-            "⬇️ Descargar Excel",
-            data=out,
-            file_name=file_name,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-
+st.caption("Desarrollado en Streamlit • Última actualización: 2025‑06‑17")
