@@ -1,197 +1,6 @@
-"""
-Streamlit version of the Potential Work Orders tool.
----------------------------------------------------
-- Replaces all Tk/ttkbootstrap UI with Streamlit widgets.
-- Keeps the core data‑processing logic (load CSVs, match coverage, bulk add, granular editing, save to Excel).
-- Persists the working DataFrame in st.session_state so users can perform many actions without losing data.
-- Gracefully handles the absence of config.ini by falling back to sensible defaults, avoiding the previous
-  configparser.NoSectionError.
-- Uses st.date_input + st.time_input instead of the non‑existent st.datetime_input to fix the AttributeError.
-- Provides a "Añadir datos en bloque" expander with a column selector that populates correctly.
-
-How to run locally
-------------------
-bash
-pip install -r requirements.txt  # streamlit pandas openpyxl folium (optional)
-streamlit run streamlit_app.py
-
-On Streamlit Cloud push this file and a requirements.txt (see above) to GitHub and Deploy.
-"""
-
-from __future__ import annotations
-
-import io
-import os
-from datetime import datetime, timedelta, date, time
-from pathlib import Path
-from typing import Dict, List
-
-import pandas as pd
-import streamlit as st
-import configparser
-
-# -----------------------------------------------------------------------------
-# Configuration helpers
-# -----------------------------------------------------------------------------
-
-def _safe_get(config: configparser.ConfigParser, section: str, option: str, default: str = "") -> str:
-    """Return the value for *option* in *section* or *default* if the section/option is missing."""
-    try:
-        return config.get(section, option)
-    except (configparser.NoSectionError, configparser.NoOptionError):
-        return default
-
-def load_excel_template_columns(path: str) -> List[str]:
-    if not os.path.exists(path):
-        st.warning(f"Excel template not found at: {path}")
-        return []
-    try:
-        template_df = pd.read_excel(path, engine="openpyxl")
-        return template_df.columns.tolist()
-    except Exception as e:
-        st.error(f"Error loading Excel template: {e}")
-        return []
-
-
-def load_config(path: str = "config.ini") -> tuple[
-    List[str], Dict[str, List[str]], List[str], str, Dict[str, List[str]], str
-]:
-    """Load configuration from *path*; fall back to safe defaults if file or keys are missing."""
-
-    cfg = configparser.ConfigParser()
-    cfg.optionxform = str  # preserve case
-    cfg.read(path)
-
-    protected_columns = [c.strip() for c in _safe_get(cfg, "PROTECTED_COLUMNS", "columns", "").split(",") if c]
-    base_save_path = _safe_get(cfg, "GENERAL", "base_save_path", "output")
-    excel_autoload_path = _safe_get(cfg, "GENERAL", "excel_autoload_path", "")
-
-    dropdown_values: Dict[str, List[str]] = {}
-    if cfg.has_section("DROPDOWN_VALUES"):
-        for key in cfg["DROPDOWN_VALUES"]:
-            dropdown_values[key] = [x.strip() for x in cfg.get("DROPDOWN_VALUES", key).split(",")]
-
-    required_columns = [c.strip() for c in _safe_get(cfg, "REQUIRED_COLUMNS", "columns", "").split(",") if c]
-
-    parent_child_map: Dict[str, List[str]] = {}
-    if cfg.has_section("PARENT_CHILD_RELATIONS"):
-        for parent in cfg["PARENT_CHILD_RELATIONS"]:
-            parent_child_map[parent] = [x.strip() for x in cfg.get("PARENT_CHILD_RELATIONS", parent).split(",")]
-          
-    excel_template_path = _safe_get(cfg, "GENERAL", "excel_template_path", "test.xlsx")
-  
-    return (
-        protected_columns,
-        dropdown_values,
-        required_columns,
-        base_save_path,
-        parent_child_map,
-        excel_autoload_path,
-        excel_template_path
-    )
-
-
-# -----------------------------------------------------------------------------
-# App state initialisation
-# -----------------------------------------------------------------------------
-
-DEFAULT_DF = pd.DataFrame()
-
-if "df" not in st.session_state:
-    st.session_state.df = DEFAULT_DF.copy()
-
-(
-    PROTECTED_COLUMNS,
-    DROPDOWN_VALUES,
-    REQUIRED_COLUMNS,
-    BASE_SAVE_PATH,
-    PARENT_CHILD_MAP,
-    EXCEL_AUTOLOAD,
-    EXCEL_TEMPLATE_PATH,
-) = load_config()
-
-st.set_page_config(page_title="Work Orders Tool", layout="wide")
-st.title("Potential Work Orders Management (Streamlit)")
-
-# -----------------------------------------------------------------------------
-# File uploaders
-# -----------------------------------------------------------------------------
-
-col1, col2 = st.columns(2)
-
-with col1:
-    geo_file = st.file_uploader("📍 Upload Georadar CSV", type="csv", key="geo")
-
-with col2:
-    cov_file = st.file_uploader("📶 Upload Coverage CSV", type="csv", key="cov")
-
-# -----------------------------------------------------------------------------
-# Helpers for data processing
-# -----------------------------------------------------------------------------
-
-def load_georadar(csv_bytes: bytes) -> None:
-    df = pd.read_csv(io.BytesIO(csv_bytes))
-    if not {"Latitud", "Longitud"}.issubset(df.columns):
-        st.error("CSV file must contain columns 'Latitud' y 'Longitud'.")
-        return
-
-    st.session_state.df = df.rename(
-        columns={"Latitud": "Latitude - Functional Location", "Longitud": "Longitude - Functional Location"}
-    )
-    # Hard‑coded fields
-    st.session_state.df["Service Account - Work Order"] = "ANER_Senegal"
-    st.session_state.df["Billing Account - Work Order"] = "ANER_Senegal"
-    st.session_state.df["Work Order Type - Work Order"] = "Installation"
-
-    st.success("Coords updated successfully ✅")
-
-
-def load_coverage(csv_bytes: bytes) -> None:
-    if st.session_state.df.empty:
-        st.warning("First upload the Georadar file.")
-        return
-
-    cov_df = pd.read_csv(io.BytesIO(csv_bytes))
-    required = {"Latitud", "Longitud", "RSSI / RSCP (dBm)"}
-    if not required.issubset(cov_df.columns):
-        st.error("Coverage CSV file must contain Latitud, Longitud and RRSI / RSCP (dBm).")
-        return
-
-    # Binning to 1e‑10 deg for matching
-    st.session_state.df["LatBin"] = st.session_state.df["Latitude - Functional Location"].round(10)
-    st.session_state.df["LonBin"] = st.session_state.df["Longitude - Functional Location"].round(10)
-    cov_df["LatBin"] = cov_df["Latitud"].round(10)
-    cov_df["LonBin"] = cov_df["Longitud"].round(10)
-
-    cov_map = cov_df.set_index(["LatBin", "LonBin"])["RSSI / RSCP (dBm)"].to_dict()
-    st.session_state.df["dBm"] = st.session_state.df.apply(lambda r: cov_map.get((r.LatBin, r.LonBin)), axis=1)
-
-    def classify(rssi):
-        if pd.isna(rssi):
-            return None
-        if -70 <= rssi <= -10:
-            return "YES"
-        if -200 <= rssi < -70:
-            return "NO"
-        return None
-
-    st.session_state.df["Gateway"] = st.session_state.df["dBm"].apply(classify)
-    st.session_state.df.drop(columns=["LatBin", "LonBin"], inplace=True)
-
-    st.success("Coverage processed and applied ✅")
-
-
-# -----------------------------------------------------------------------------
-# Trigger processing on upload
-# -----------------------------------------------------------------------------
-
-if geo_file is not None and cov_file is not None:
-    load_georadar(geo_file.getvalue())
-    load_coverage(cov_file.getvalue())
-
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 # Data editor (granular editing)
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 
 if "editor_refresh_count" not in st.session_state:
     st.session_state.editor_refresh_count = 0
@@ -230,13 +39,98 @@ else:
         st.session_state.edited_df = result_df.copy()
         st.success("Changes applied.")
 
-with st.expander("⏱️ Autocompletar fechas y horas en columnas temporales"):
-    date_ref = st.date_input("Fecha inicial", value=date.today(), key="seq_date_start")
-    time_ref = st.time_input("Hora inicial", value=datetime.now().time().replace(second=0, microsecond=0), key="seq_time_start")
+    # -------------------------------------------------------------------------
+    # Autocompletar fechas y horas en columnas temporales
+    # -------------------------------------------------------------------------
+    with st.expander("⏱️ Autocompletar fechas y horas en columnas temporales"):
+        date_ref = st.date_input("Fecha inicial", value=date.today(), key="seq_date_start")
+        time_ref = st.time_input("Hora inicial", value=datetime.now().time().replace(second=0, microsecond=0), key="seq_time_start")
 
-    if st.button("🕒 Rellenar columnas con incrementos de 27 min"):
-        start_dt = datetime.combine(date_ref, time_ref)
-        increments = [start_dt + timedelta(minutes=27 * i) for i in range(len(st.session_state.edited_df))]
+        if st.button("🕒 Rellenar columnas con incrementos de 27 min"):
+            start_dt = datetime.combine(date_ref, time_ref)
+            increments = [start_dt + timedelta(minutes=27 * i) for i in range(len(st.session_state.edited_df))]
+
+            full_dt_cols = [
+                "Promised window From - Work Order",
+                "Promised window To - Work Order",
+                "StartTime - Bookable Resource Booking",
+                "EndTime - Bookable Resource Booking",
+            ]
+            time_only_cols = [
+                "Time window From - Work Order",
+                "Time window To - Work Order",
+            ]
+
+            for col in full_dt_cols:
+                if col in st.session_state.edited_df.columns:
+                    st.session_state.edited_df[col] = increments
+            for col in time_only_cols:
+                if col in st.session_state.edited_df.columns:
+                    st.session_state.edited_df[col] = [d.time().strftime("%H:%M:%S") for d in increments]
+
+            st.success("Fechas y horas rellenadas en la tabla.")
+            st.rerun()
+
+    # -------------------------------------------------------------------------
+    # Añadir datos en bloque a una columna
+    # -------------------------------------------------------------------------
+    st.subheader("🧩 Añadir datos en bloque")
+
+    with st.expander("➕ Añadir un valor a toda una columna"):
+        if "edited_df" not in st.session_state or st.session_state.edited_df.empty:
+            st.warning("La tabla aún no ha sido cargada.")
+        else:
+            editable_columns = [col for col in st.session_state.edited_df.columns if col not in PROTECTED_COLUMNS]
+
+            selected_column = st.selectbox("Selecciona columna:", editable_columns, key="block_col_selector")
+
+            # Lógica especial si es columna hijo
+            if selected_column == "Name - Child Functional Location":
+                # Buscar valor padre en el DataFrame
+                if "Name - Parent Functional Location" in st.session_state.edited_df.columns:
+                    parent_vals = st.session_state.edited_df["Name - Parent Functional Location"].dropna().unique()
+                    parent_val = parent_vals[0] if len(parent_vals) > 0 else None
+
+                    if parent_val and parent_val in PARENT_CHILD_MAP:
+                        children = PARENT_CHILD_MAP[parent_val]
+                        value_to_apply = st.selectbox(
+                            f"Selecciona valor hijo para '{parent_val}':",
+                            children,
+                            key="block_child_value"
+                        )
+                    else:
+                        st.warning("No se ha detectado un valor válido para el campo padre.")
+                        value_to_apply = ""
+                else:
+                    st.warning("La columna 'Name - Parent Functional Location' no existe.")
+                    value_to_apply = ""
+            elif selected_column in DROPDOWN_VALUES:
+                value_to_apply = st.selectbox("Selecciona valor a aplicar:", DROPDOWN_VALUES[selected_column], key="block_value_selector")
+            else:
+                value_to_apply = st.text_input("Escribe el valor a aplicar:", key="block_value_input")
+
+            if st.button("📌 Aplicar valor a columna"):
+                if selected_column and value_to_apply:
+                    st.session_state.edited_df[selected_column] = value_to_apply
+                    st.success(f"Se aplicó '{value_to_apply}' a la columna '{selected_column}'.")
+                    st.rerun()
+                else:
+                    st.error("Debes seleccionar una columna y un valor válidos.")
+
+    # ---------------------------------------------------------------------
+    # Guardar / descargar Excel
+    # ---------------------------------------------------------------------
+    st.subheader("💾 Save / Download Excel")
+    col_date, col_time = st.columns(2)
+    with col_date:
+        date_input: date = st.date_input("Fecha inicial", value=date.today(), key="start_date")
+    with col_time:
+        time_input: time = st.time_input("Hora inicial", value=datetime.now().time().replace(second=0, microsecond=0), key="start_time")
+
+    if st.button("Generar y descargar Excel", key="save_excel"):
+        df_to_save = result_df.copy()
+        start_dt = datetime.combine(date_input, time_input)
+        increments = [start_dt + timedelta(minutes=27 * i) for i in range(len(st.session_state.df))]
 
         full_dt_cols = [
             "Promised window From - Work Order",
@@ -250,124 +144,33 @@ with st.expander("⏱️ Autocompletar fechas y horas en columnas temporales"):
         ]
 
         for col in full_dt_cols:
-            if col in st.session_state.edited_df.columns:
-                st.session_state.edited_df[col] = increments
+            if col in st.session_state.df.columns:
+                st.session_state.df[col] = increments
         for col in time_only_cols:
-            if col in st.session_state.edited_df.columns:
-                st.session_state.edited_df[col] = [d.time().strftime("%H:%M:%S") for d in increments]
+            if col in st.session_state.df.columns:
+                st.session_state.df[col] = [d.time().strftime("%H:%M:%S") for d in increments]
 
-        st.success("Fechas y horas rellenadas en la tabla.")
-        st.rerun()
+        missing = [c for c in REQUIRED_COLUMNS if c in st.session_state.df.columns and st.session_state.df[c].isna().any()]
+        if missing:
+            st.error("Faltan datos en las columnas obligatorias:\n" + "\n".join(missing))
+        else:
+            out = io.BytesIO()
 
+            # 👉 Insertar aquí el uso de la plantilla
+            template_columns = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
+            df_to_save = st.session_state.edited_df.copy()
 
-      # -------------------------------------------------------------------------
-      # Añadir datos en bloque a una columna
-      # -------------------------------------------------------------------------
-      st.subheader("🧩 Añadir datos en bloque")
-      
-      with st.expander("➕ Añadir un valor a toda una columna"):
-          if "edited_df" not in st.session_state or st.session_state.edited_df.empty:
-              st.warning("La tabla aún no ha sido cargada.")
-          else:
-              editable_columns = [col for col in st.session_state.edited_df.columns if col not in PROTECTED_COLUMNS]
-      
-              selected_column = st.selectbox("Selecciona columna:", editable_columns, key="block_col_selector")
-      
-              # Lógica especial si es columna hijo
-              if selected_column == "Name - Child Functional Location":
-                  # Buscar valor padre en el DataFrame
-                  if "Name - Parent Functional Location" in st.session_state.edited_df.columns:
-                      parent_vals = st.session_state.edited_df["Name - Parent Functional Location"].dropna().unique()
-                      parent_val = parent_vals[0] if len(parent_vals) > 0 else None
-      
-                      if parent_val and parent_val in PARENT_CHILD_MAP:
-                          children = PARENT_CHILD_MAP[parent_val]
-                          value_to_apply = st.selectbox(
-                              f"Selecciona valor hijo para '{parent_val}':",
-                              children,
-                              key="block_child_value"
-                          )
-                      else:
-                          st.warning("No se ha detectado un valor válido para el campo padre.")
-                          value_to_apply = ""
-                  else:
-                      st.warning("La columna 'Name - Parent Functional Location' no existe.")
-                      value_to_apply = ""
-              elif selected_column in DROPDOWN_VALUES:
-                  value_to_apply = st.selectbox("Selecciona valor a aplicar:", DROPDOWN_VALUES[selected_column], key="block_value_selector")
-              else:
-                  value_to_apply = st.text_input("Escribe el valor a aplicar:", key="block_value_input")
-      
-              if st.button("📌 Aplicar valor a columna"):
-                  if selected_column and value_to_apply:
-                      st.session_state.edited_df[selected_column] = value_to_apply
-                      st.success(f"Se aplicó '{value_to_apply}' a la columna '{selected_column}'.")
-                      st.rerun()
-                  else:
-                      st.error("Debes seleccionar una columna y un valor válidos.")
+            for col in template_columns:
+                if col not in df_to_save.columns:
+                    df_to_save[col] = ""
 
-              
-    # ---------------------------------------------------------------------
-    # Guardar / descargar Excel
-    # ---------------------------------------------------------------------
+            df_to_save = df_to_save[template_columns]
 
-    st.subheader("💾 Save / Download Excel")
-    col_date, col_time = st.columns(2)
-    with col_date:
-        date_input: date = st.date_input("Fecha inicial", value=date.today(), key="start_date")
-    with col_time:
-        time_input: time = st.time_input("Hora inicial", value=datetime.now().time().replace(second=0, microsecond=0), key="start_time")
+            with pd.ExcelWriter(out, engine="openpyxl") as writer:
+                df_to_save.to_excel(writer, index=False)
 
-if st.button("Generar y descargar Excel", key="save_excel"):
-    df_to_save = result_df.copy()
-    start_dt = datetime.combine(date_input, time_input)
-    increments = [start_dt + timedelta(minutes=27 * i) for i in range(len(st.session_state.df))]
+            out.seek(0)
+            timestamp = start_dt.strftime("%Y%m%d_%H%M%S")
+            file_name = f"datos_{timestamp}.xlsx"
+            st.download_button("⬇️ Descargar Excel", data=out, file_name=file_name, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-    full_dt_cols = [
-        "Promised window From - Work Order",
-        "Promised window To - Work Order",
-        "StartTime - Bookable Resource Booking",
-        "EndTime - Bookable Resource Booking",
-    ]
-    time_only_cols = [
-        "Time window From - Work Order",
-        "Time window To - Work Order",
-    ]
-
-    for col in full_dt_cols:
-        if col in st.session_state.df.columns:
-            st.session_state.df[col] = increments
-    for col in time_only_cols:
-        if col in st.session_state.df.columns:
-            st.session_state.df[col] = [d.time().strftime("%H:%M:%S") for d in increments]
-
-    missing = [c for c in REQUIRED_COLUMNS if c in st.session_state.df.columns and st.session_state.df[c].isna().any()]
-    if missing:
-        st.error("Faltan datos en las columnas obligatorias:\n" + "\n".join(missing))
-    else:
-        out = io.BytesIO()
-
-        # 👉 Insertar aquí el uso de la plantilla
-        template_columns = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
-        df_to_save = st.session_state.edited_df.copy()
-
-        for col in template_columns:
-            if col not in df_to_save.columns:
-                df_to_save[col] = ""
-
-        df_to_save = df_to_save[template_columns]
-
-        with pd.ExcelWriter(out, engine="openpyxl") as writer:
-            df_to_save.to_excel(writer, index=False)
-
-        out.seek(0)
-        timestamp = start_dt.strftime("%Y%m%d_%H%M%S")
-        file_name = f"datos_{timestamp}.xlsx"
-        st.download_button("⬇️ Descargar Excel", data=out, file_name=file_name, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-
-# -----------------------------------------------------------------------------
-# Footer
-# -----------------------------------------------------------------------------
-
-st.caption("Desarrollado en Streamlit • Última actualización: 2025‑06‑17")
