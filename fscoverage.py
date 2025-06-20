@@ -200,40 +200,72 @@ import folium
 if not st.session_state.df.empty:
     st.subheader("🗺️ Mapa interactivo de puntos Georadar y Cobertura")
 
+    # Añadir leyenda visual en Streamlit
+    st.markdown("""
+    <style>
+    .legend-box {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.9rem;
+    }
+    .legend-color {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+    </style>
+
+    <div class="legend-box">
+        <div class="legend-item"><span class="legend-color" style="background-color: blue;"></span>Georadar sin cobertura</div>
+        <div class="legend-item"><span class="legend-color" style="background-color: green;"></span>Buena cobertura (Gateway YES)</div>
+        <div class="legend-item"><span class="legend-color" style="background-color: red;"></span>Mala cobertura (Gateway NO)</div>
+    </div>
+    """, unsafe_allow_html=True)
+
     try:
         center_lat = st.session_state.df["Latitude - Functional Location"].iloc[0]
         center_lon = st.session_state.df["Longitude - Functional Location"].iloc[0]
         m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
 
-        # Georadar: puntos verdes
+        # Mostrar todos los puntos con color según cobertura
         for _, row in st.session_state.df.iterrows():
+            lat = row["Latitude - Functional Location"]
+            lon = row["Longitude - Functional Location"]
+            gateway = row.get("Gateway", None)
+            dBm = row.get("dBm", None)
+
+            if gateway == "YES":
+                color = "green"
+                label = f"📡 Buena cobertura (RSSI: {dBm})"
+            elif gateway == "NO":
+                color = "red"
+                label = f"❌ Mala cobertura (RSSI: {dBm})"
+            else:
+                color = "blue"
+                label = "🗺️ Punto georadar sin cobertura"
+
             folium.CircleMarker(
-                location=[row["Latitude - Functional Location"], row["Longitude - Functional Location"]],
+                location=[lat, lon],
                 radius=5,
-                color="green",
+                color=color,
                 fill=True,
                 fill_opacity=0.7,
-                popup=f"RSSI: {row['dBm']}"
+                popup=label
             ).add_to(m)
 
-        # Cobertura: si hay dBm, mostrar como azul
-        if "dBm" in st.session_state.df.columns:
-            for _, row in st.session_state.df.iterrows():
-                if not pd.isna(row["dBm"]):
-                    folium.CircleMarker(
-                        location=[row["Latitude - Functional Location"], row["Longitude - Functional Location"]],
-                        radius=4,
-                        color="blue",
-                        fill=True,
-                        fill_opacity=0.4,
-                        popup="Georadar"
-                    ).add_to(m)
-
-        # Mostrar el mapa en Streamlit
         st_folium(m, width=1000, height=500)
 
     except Exception as e:
         st.warning(f"No se pudo mostrar el mapa: {e}")
+
 
 # -------------------------------------------------------------------------
 # Data editor (granular editing)
