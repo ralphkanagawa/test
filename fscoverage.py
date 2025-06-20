@@ -260,7 +260,24 @@ if not st.session_state.df.empty:
                 label = "🟢 Georadar con buena cobertura"
             elif gateway == "NO":
                 color = "red"
-                label = "🔴 Georadar con mala cobertu
+                label = "🔴 Georadar con mala cobertura"
+            else:
+                continue  # ❌ Ignoramos georadar sin gateway definido para este mapa
+
+            folium.CircleMarker(
+                location=[lat, lon],
+                radius=6,
+                color=color,
+                fill=True,
+                fill_opacity=0.8,
+                popup=label
+            ).add_to(m)
+
+        st_folium(m, width=1000, height=500)
+
+    except Exception as e:
+        st.warning(f"No se pudo mostrar el mapa: {e}")
+
 
 
 
