@@ -189,6 +189,52 @@ if geo_file is not None and cov_file is not None:
     load_georadar(geo_file.getvalue())
     load_coverage(cov_file.getvalue())
 
+
+# -------------------------------------------------------------------------
+# Mapa
+# -------------------------------------------------------------------------
+
+from streamlit_folium import st_folium
+import folium
+
+if not st.session_state.df.empty:
+    st.subheader("🗺️ Mapa interactivo de puntos Georadar y Cobertura")
+
+    try:
+        center_lat = st.session_state.df["Latitude - Functional Location"].iloc[0]
+        center_lon = st.session_state.df["Longitude - Functional Location"].iloc[0]
+        m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
+
+        # Georadar: puntos verdes
+        for _, row in st.session_state.df.iterrows():
+            folium.CircleMarker(
+                location=[row["Latitude - Functional Location"], row["Longitude - Functional Location"]],
+                radius=5,
+                color="green",
+                fill=True,
+                fill_opacity=0.7,
+                popup="Georadar"
+            ).add_to(m)
+
+        # Cobertura: si hay dBm, mostrar como azul
+        if "dBm" in st.session_state.df.columns:
+            for _, row in st.session_state.df.iterrows():
+                if not pd.isna(row["dBm"]):
+                    folium.CircleMarker(
+                        location=[row["Latitude - Functional Location"], row["Longitude - Functional Location"]],
+                        radius=4,
+                        color="blue",
+                        fill=True,
+                        fill_opacity=0.4,
+                        popup=f"RSSI: {row['dBm']}"
+                    ).add_to(m)
+
+        # Mostrar el mapa en Streamlit
+        st_folium(m, width=1000, height=500)
+
+    except Exception as e:
+        st.warning(f"No se pudo mostrar el mapa: {e}")
+
 # -------------------------------------------------------------------------
 # Data editor (granular editing)
 # -------------------------------------------------------------------------
