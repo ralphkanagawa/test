@@ -176,7 +176,7 @@ for _, r in agg.iterrows():
         popup=f"RSSI: {r.RSSI:.1f} dBm",
     ).add_to(fmap)
 
-st_folium(fmap, width=105, height=50)
+st_folium(fmap, width=1050, height=500)
 st.markdown("<div style='margin-top:0px'></div>", unsafe_allow_html=True)
 
 # ─────────────── 4) Tabla editable + herramientas ───────────────
