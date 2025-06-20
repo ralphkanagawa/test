@@ -189,9 +189,12 @@ if geo_file is not None and cov_file is not None:
     load_georadar(geo_file.getvalue())
     load_coverage(cov_file.getvalue())
 
-# -------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # Data editor (granular editing)
-# -------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+
+if "editor_refresh_count" not in st.session_state:
+    st.session_state.editor_refresh_count = 0
 
 if st.session_state.df.empty:
     st.info("Upload a CSV to start.")
@@ -207,51 +210,51 @@ else:
         if col not in df.columns:
             df[col] = ""
 
-    df = df[template_columns]  # Reordenar columnas
+    df = df[template_columns]
 
-    # Guardamos como editable (solo la primera vez o si se ha borrado)
+    # Inicializar editable solo una vez (si no existe o se ha vaciado)
     if "edited_df" not in st.session_state or st.session_state.edited_df.empty:
         st.session_state.edited_df = df.copy()
 
-    # Editor de tabla interactivo
+    # Refrescar editor con clave dinámica
     result_df = st.data_editor(
         st.session_state.edited_df,
         num_rows="dynamic",
         use_container_width=True,
-        key="editor"
+        key=f"editor_{st.session_state.editor_refresh_count}"  # ⚡ clave cambia al modificar en bloque
     )
 
-    # Botón para aplicar los cambios hechos en la tabla
+    # Botón para aplicar cambios manuales
     if st.button("✅ Apply changes to the table"):
         st.session_state.df = result_df.copy()
         st.session_state.edited_df = result_df.copy()
         st.success("Changes applied.")
 
-    # ---------------------------------------------------------------------
-    # Bloque: añadir datos en una columna
-    # ---------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+    # Añadir datos en bloque a una columna
+    # -------------------------------------------------------------------------
     st.subheader("🧩 Añadir datos en bloque")
-    
+
     with st.expander("➕ Añadir un valor a toda una columna"):
         editable_columns = [col for col in st.session_state.edited_df.columns if col not in PROTECTED_COLUMNS]
-    
+
         selected_column = st.selectbox("Selecciona columna:", editable_columns, key="block_col_selector")
-    
-        # Si hay valores predefinidos desde config.ini, los usamos como dropdown
+
+        # Si hay valores predefinidos desde config.ini, usamos dropdown
         predefined_values = DROPDOWN_VALUES.get(selected_column, [])
         if predefined_values:
             value_to_apply = st.selectbox("Selecciona valor a aplicar:", predefined_values, key="block_value_selector")
         else:
             value_to_apply = st.text_input("Escribe el valor a aplicar:", key="block_value_input")
-    
+
         if st.button("📌 Aplicar valor a columna"):
             if selected_column and value_to_apply:
                 st.session_state.edited_df[selected_column] = value_to_apply
+                st.session_state.editor_refresh_count += 1  # ⚡ Fuerza refresco visual
                 st.success(f"Se aplicó '{value_to_apply}' a la columna '{selected_column}'.")
             else:
                 st.error("Debes seleccionar una columna y un valor válidos.")
-
-      
+              
     # ---------------------------------------------------------------------
     # Guardar / descargar Excel
     # ---------------------------------------------------------------------
