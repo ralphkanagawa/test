@@ -230,6 +230,36 @@ else:
         st.session_state.edited_df = result_df.copy()
         st.success("Changes applied.")
 
+with st.expander("⏱️ Autocompletar fechas y horas en columnas temporales"):
+    date_ref = st.date_input("Fecha inicial", value=date.today(), key="seq_date_start")
+    time_ref = st.time_input("Hora inicial", value=datetime.now().time().replace(second=0, microsecond=0), key="seq_time_start")
+
+    if st.button("🕒 Rellenar columnas con incrementos de 27 min"):
+        start_dt = datetime.combine(date_ref, time_ref)
+        increments = [start_dt + timedelta(minutes=27 * i) for i in range(len(st.session_state.edited_df))]
+
+        full_dt_cols = [
+            "Promised window From - Work Order",
+            "Promised window To - Work Order",
+            "StartTime - Bookable Resource Booking",
+            "EndTime - Bookable Resource Booking",
+        ]
+        time_only_cols = [
+            "Time window From - Work Order",
+            "Time window To - Work Order",
+        ]
+
+        for col in full_dt_cols:
+            if col in st.session_state.edited_df.columns:
+                st.session_state.edited_df[col] = increments
+        for col in time_only_cols:
+            if col in st.session_state.edited_df.columns:
+                st.session_state.edited_df[col] = [d.time().strftime("%H:%M:%S") for d in increments]
+
+        st.success("Fechas y horas rellenadas en la tabla.")
+        st.rerun()
+
+
     # -------------------------------------------------------------------------
     # Añadir datos en bloque a una columna
     # -------------------------------------------------------------------------
