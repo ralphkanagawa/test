@@ -250,8 +250,8 @@ else:
         if st.button("📌 Aplicar valor a columna"):
             if selected_column and value_to_apply:
                 st.session_state.edited_df[selected_column] = value_to_apply
-                st.session_state.editor_refresh_count += 1  # ⚡ Fuerza refresco visual
                 st.success(f"Se aplicó '{value_to_apply}' a la columna '{selected_column}'.")
+                st.experimental_rerun()  # 🚀 Fuerza el refresco inmediato del editor
             else:
                 st.error("Debes seleccionar una columna y un valor válidos.")
               
