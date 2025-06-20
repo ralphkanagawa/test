@@ -196,66 +196,107 @@ if geo_file is not None and cov_file is not None:
 # Mapa
 # -------------------------------------------------------------------------
 
-from streamlit_folium import st_folium
+import streamlit as st
+import pandas as pd
 import folium
+from folium.plugins import MarkerCluster
+from streamlit_folium import st_folium
 
-# Solo si ambos CSV están cargados:
-if "geo_df" in st.session_state and "cov_df" in st.session_state:
-    geo_df = st.session_state.geo_df
-    cov_df = st.session_state.cov_df
-    work_df = st.session_state.df        # georadar ya con la columna Gateway
+st.set_page_config(page_title="Visualizador de Cobertura Agrupada", layout="wide")
+st.title("📡 Visualizador de Cobertura Agrupada")
 
-    st.subheader("🗺️ Mapa: Georadar vs Cobertura (fuentes separadas)")
+# ------------------------------------------------------------------------------
+# Subida de archivos
+# ------------------------------------------------------------------------------
 
-    # Leyenda
-    st.markdown("""
-    <style>
-    .legend {display:flex;gap:1rem;margin-bottom:0.5rem;font-size:0.9rem}
-    .legend span{display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:4px}
-    </style>
-    <div class="legend">
-      <div><span style="background:#0080ff"></span>Cobertura (CSV 2)</div>
-      <div><span style="background:#00aa00"></span>Georadar YES</div>
-      <div><span style="background:#cc0000"></span>Georadar NO</div>
-    </div>
-    """, unsafe_allow_html=True)
+col1, col2 = st.columns(2)
 
-    # Centrar mapa en el 1er punto georadar
-    m = folium.Map(location=[geo_df["Latitud"].iloc[0],
-                             geo_df["Longitud"].iloc[0]],
-                   zoom_start=12)
+with col1:
+    file_puntos = st.file_uploader("📍 Subir archivo de puntos (luminarias)", type="csv", key="puntos")
 
-    # 🔵 Cobertura (todos azules)
-    for _, r in cov_df.iterrows():
-        folium.CircleMarker(
-            location=[r["Latitud"], r["Longitud"]],
-            radius=4,
-            color="blue",
-            fill=True,
-            fill_opacity=0.45,
-            popup=f"📶 RSSI/RSCP: {r.get('RSSI / RSCP (dBm)', 'n/a')}"
-        ).add_to(m)
+with col2:
+    file_cobertura = st.file_uploader("📶 Subir archivo de cobertura", type="csv", key="cobertura")
 
-    # 🟢🔴 Georadar (coloreado por Gateway ya calculado)
-    for _, r in work_df.iterrows():
-        color, label = None, None
-        if r.get("Gateway") == "YES":
-            color, label = "green", "Georadar YES"
-        elif r.get("Gateway") == "NO":
-            color, label = "red",   "Georadar NO"
+# ------------------------------------------------------------------------------
+# Procesamiento y visualización
+# ------------------------------------------------------------------------------
 
-        if color:   # solo YES o NO
-            folium.CircleMarker(
-                location=[r["Latitude - Functional Location"],
-                          r["Longitude - Functional Location"]],
-                radius=6,
-                color=color,
-                fill=True,
-                fill_opacity=0.9,
-                popup=label
-            ).add_to(m)
+if file_puntos is not None:
+    try:
+        df_puntos = pd.read_csv(file_puntos)
 
-    st_folium(m, width=1000, height=520)
+        if not all(col in df_puntos.columns for col in ["Latitud", "Longitud"]):
+            st.error("❌ El archivo de puntos debe tener columnas 'Latitud' y 'Longitud'.")
+            st.stop()
+
+        # Crear mapa base centrado en los puntos de luminarias
+        m = folium.Map(
+            location=[df_puntos["Latitud"].mean(), df_puntos["Longitud"].mean()],
+            zoom_start=12
+        )
+
+        marker_cluster = MarkerCluster().add_to(m)
+
+        for _, row in df_puntos.iterrows():
+            folium.Marker(
+                location=[row["Latitud"], row["Longitud"]],
+                popup=row.to_string(),
+                icon=folium.Icon(color="blue", icon="info-sign")
+            ).add_to(marker_cluster)
+
+        # ----------------------------------------------------------------------
+        # Procesar cobertura si se sube
+        # ----------------------------------------------------------------------
+        if file_cobertura is not None:
+            df_cobertura = pd.read_csv(file_cobertura)
+
+            if not all(col in df_cobertura.columns for col in ["Latitud", "Longitud"]):
+                st.error("❌ El archivo de cobertura debe tener columnas 'Latitud' y 'Longitud'.")
+                st.stop()
+
+            if "RSSI / RSCP (dBm)" not in df_cobertura.columns:
+                st.error("❌ Falta la columna 'RSSI / RSCP (dBm)' en el archivo de cobertura.")
+                st.stop()
+
+            df_cobertura["LatBin"] = df_cobertura["Latitud"].round(10)
+            df_cobertura["LonBin"] = df_cobertura["Longitud"].round(10)
+
+            grouped = df_cobertura.groupby(["LatBin", "LonBin"]).agg({
+                "Latitud": "mean",
+                "Longitud": "mean",
+                "RSSI / RSCP (dBm)": "mean"
+            }).reset_index()
+
+            def clasificar_color(rssi):
+                if rssi >= -70:
+                    return "green"
+                elif -80 <= rssi < -70:
+                    return "orange"
+                else:
+                    return "red"
+
+            grouped["color"] = grouped["RSSI / RSCP (dBm)"].apply(clasificar_color)
+
+            for _, row in grouped.iterrows():
+                popup_text = f"📶 Media RSSI: {row['RSSI / RSCP (dBm)']:.2f} dBm"
+                folium.CircleMarker(
+                    location=[row["Latitud"], row["Longitud"]],
+                    radius=6,
+                    color=row["color"],
+                    fill=True,
+                    fill_color=row["color"],
+                    fill_opacity=0.6,
+                    popup=popup_text
+                ).add_to(m)
+
+        # ----------------------------------------------------------------------
+        # Mostrar mapa
+        # ----------------------------------------------------------------------
+        st.subheader("🗺️ Mapa interactivo")
+        st_folium(m, width=1100, height=600)
+
+    except Exception as e:
+        st.error(f"❌ Error procesando los archivos: {e}")
 
 
 # -------------------------------------------------------------------------
