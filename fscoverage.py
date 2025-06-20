@@ -135,6 +135,7 @@ def load_georadar(csv_bytes: bytes) -> None:
         st.error("CSV file must contain columns 'Latitud' y 'Longitud'.")
         return
 
+    st.session_state.geo_df = df.copy()
     st.session_state.df = df.rename(
         columns={"Latitud": "Latitude - Functional Location", "Longitud": "Longitude - Functional Location"}
     )
@@ -152,6 +153,7 @@ def load_coverage(csv_bytes: bytes) -> None:
         return
 
     cov_df = pd.read_csv(io.BytesIO(csv_bytes))
+    st.session_state.cov_df = cov_df.copy() 
     required = {"Latitud", "Longitud", "RSSI / RSCP (dBm)"}
     if not required.issubset(cov_df.columns):
         st.error("Coverage CSV file must contain Latitud, Longitud and RRSI / RSCP (dBm).")
@@ -197,88 +199,63 @@ if geo_file is not None and cov_file is not None:
 from streamlit_folium import st_folium
 import folium
 
-if not st.session_state.df.empty:
-    st.subheader("🗺️ Mapa interactivo de puntos Georadar y Cobertura")
+# Solo si ambos CSV están cargados:
+if "geo_df" in st.session_state and "cov_df" in st.session_state:
+    geo_df = st.session_state.geo_df
+    cov_df = st.session_state.cov_df
+    work_df = st.session_state.df        # georadar ya con la columna Gateway
 
-    # Leyenda visual
+    st.subheader("🗺️ Mapa: Georadar vs Cobertura (fuentes separadas)")
+
+    # Leyenda
     st.markdown("""
     <style>
-    .legend-box {
-        display: flex;
-        gap: 1rem;
-        margin-bottom: 1rem;
-        flex-wrap: wrap;
-    }
-    .legend-item {
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-        font-size: 0.9rem;
-    }
-    .legend-color {
-        width: 14px;
-        height: 14px;
-        border-radius: 50%;
-        display: inline-block;
-    }
+    .legend {display:flex;gap:1rem;margin-bottom:0.5rem;font-size:0.9rem}
+    .legend span{display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:4px}
     </style>
-
-    <div class="legend-box">
-        <div class="legend-item"><span class="legend-color" style="background-color: green;"></span>Georadar con buena cobertura (YES)</div>
-        <div class="legend-item"><span class="legend-color" style="background-color: red;"></span>Georadar con mala cobertura (NO)</div>
-        <div class="legend-item"><span class="legend-color" style="background-color: blue;"></span>Puntos de cobertura</div>
+    <div class="legend">
+      <div><span style="background:#0080ff"></span>Cobertura (CSV 2)</div>
+      <div><span style="background:#00aa00"></span>Georadar YES</div>
+      <div><span style="background:#cc0000"></span>Georadar NO</div>
     </div>
     """, unsafe_allow_html=True)
 
-    try:
-        # Mapa centrado en el primer punto de georadar
-        center_lat = st.session_state.df["Latitude - Functional Location"].iloc[0]
-        center_lon = st.session_state.df["Longitude - Functional Location"].iloc[0]
-        m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
+    # Centrar mapa en el 1er punto georadar
+    m = folium.Map(location=[geo_df["Latitud"].iloc[0],
+                             geo_df["Longitud"].iloc[0]],
+                   zoom_start=12)
 
-        # 🔵 1. Puntos de cobertura (del CSV de cobertura)
-        if "dBm" in st.session_state.df.columns:
-            cov_df = st.session_state.df[~st.session_state.df["dBm"].isna()]
-            for _, row in cov_df.iterrows():
-                folium.CircleMarker(
-                    location=[row["Latitude - Functional Location"], row["Longitude - Functional Location"]],
-                    radius=4,
-                    color="blue",
-                    fill=True,
-                    fill_opacity=0.4,
-                    popup=f"📶 Cobertura RSSI: {row['dBm']}"
-                ).add_to(m)
+    # 🔵 Cobertura (todos azules)
+    for _, r in cov_df.iterrows():
+        folium.CircleMarker(
+            location=[r["Latitud"], r["Longitud"]],
+            radius=4,
+            color="blue",
+            fill=True,
+            fill_opacity=0.45,
+            popup=f"📶 RSSI/RSCP: {r.get('RSSI / RSCP (dBm)', 'n/a')}"
+        ).add_to(m)
 
-        # 🟢 🔴 2. Puntos de georadar según cobertura
-        for _, row in st.session_state.df.iterrows():
-            lat = row["Latitude - Functional Location"]
-            lon = row["Longitude - Functional Location"]
-            gateway = row.get("Gateway", None)
+    # 🟢🔴 Georadar (coloreado por Gateway ya calculado)
+    for _, r in work_df.iterrows():
+        color, label = None, None
+        if r.get("Gateway") == "YES":
+            color, label = "green", "Georadar YES"
+        elif r.get("Gateway") == "NO":
+            color, label = "red",   "Georadar NO"
 
-            if gateway == "YES":
-                color = "green"
-                label = "🟢 Georadar con buena cobertura"
-            elif gateway == "NO":
-                color = "red"
-                label = "🔴 Georadar con mala cobertura"
-            else:
-                continue  # ❌ Ignoramos georadar sin gateway definido para este mapa
-
+        if color:   # solo YES o NO
             folium.CircleMarker(
-                location=[lat, lon],
+                location=[r["Latitude - Functional Location"],
+                          r["Longitude - Functional Location"]],
                 radius=6,
                 color=color,
                 fill=True,
-                fill_opacity=0.8,
+                fill_opacity=0.9,
                 popup=label
             ).add_to(m)
 
-        st_folium(m, width=1000, height=500)
-
-    except Exception as e:
-        st.warning(f"No se pudo mostrar el mapa: {e}")
-
-
+    st_folium(m, width=1000, height=520)
 
 
 # -------------------------------------------------------------------------
