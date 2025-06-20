@@ -1,13 +1,3 @@
-"""
-Work Orders Tool (Streamlit)
-───────────────────────────
-Versión completa con:
-• Agrupación de puntos georadar (círculos) y cobertura (cuadrados) mediante MarkerCluster.
-• Colores basados en la media de cobertura (`dBm`) para georadar y en el RSSI individual para cobertura.
-• Tooltip al pasar el ratón y popup al hacer clic mostrando el valor de cobertura.
-• Resto de utilidades: edición masiva, autocompletado temporal, descarga a Excel.
-"""
-
 from __future__ import annotations
 import io, os
 from datetime import datetime, timedelta, date
@@ -16,15 +6,11 @@ from typing import Dict, List
 import pandas as pd
 import streamlit as st
 import configparser
-
-import folium
-from folium.plugins import MarkerCluster
-from streamlit_folium import st_folium
+import pydeck as pdk
 
 # ─────────────────────────── Config helpers ─────────────────────────────
 
-def _safe_get(cfg: configparser.ConfigParser, sect: str, opt: str, default: str = "") -> str:
-    """Read an option from a config section safely, returning *default* if it does not exist."""
+def _safe_get(cfg, sect, opt, default=""):
     try:
         return cfg.get(sect, opt)
     except (configparser.NoSectionError, configparser.NoOptionError):
@@ -32,7 +18,6 @@ def _safe_get(cfg: configparser.ConfigParser, sect: str, opt: str, default: str 
 
 
 def load_excel_template_columns(path: str) -> List[str]:
-    """Return column names from the Excel template, so the editor shows all expected columns."""
     if os.path.exists(path):
         try:
             return pd.read_excel(path, engine="openpyxl").columns.tolist()
@@ -41,13 +26,13 @@ def load_excel_template_columns(path: str) -> List[str]:
     return []
 
 
-def load_config(path: str = "config.ini") -> tuple[
+def load_config(
+    path: str = "config.ini",
+) -> tuple[
     List[str], Dict[str, List[str]], List[str], str, Dict[str, List[str]], str, str
 ]:
-    """Load configuration from INI file and expose several helpers used in the UI."""
-
     cfg = configparser.ConfigParser()
-    cfg.optionxform = str  # preserve case for column names
+    cfg.optionxform = str
     cfg.read(path)
 
     prot = [c.strip() for c in _safe_get(cfg, "PROTECTED_COLUMNS", "columns").split(",") if c]
@@ -69,7 +54,7 @@ def load_config(path: str = "config.ini") -> tuple[
         _safe_get(cfg, "GENERAL", "base_save_path", "output"),
         pc_map,
         _safe_get(cfg, "GENERAL", "excel_autoload_path", ""),
-        _safe_get(cfg, "GENERAL", "excel_template_path", "template.xlsx"),
+        _safe_get(cfg, "GENERAL", "excel_template_path", "test.xlsx"),
     )
 
 
@@ -96,28 +81,27 @@ with col_geo:
 with col_cov:
     cov_file = st.file_uploader("📶 Coverage CSV", type="csv")
 
-# ─────────────── 2) Procesamiento ───────────────
+# ─────────────── 2) Procesamiento una única vez ───────────────
 if geo_file and cov_file and "processed" not in st.session_state:
-    # Leer Georadar
+    # Georadar
     geo_raw = pd.read_csv(geo_file)
     if not {"Latitud", "Longitud"}.issubset(geo_raw.columns):
         st.error("Georadar debe tener columnas Latitud y Longitud")
         st.stop()
 
     st.session_state.geo_df = geo_raw.copy()
-
-    # Adaptar a columnas del modelo de Excel
     gdf = geo_raw.rename(
         columns={
             "Latitud": "Latitude - Functional Location",
             "Longitud": "Longitude - Functional Location",
         }
     )
-    gdf["Service Account - Work Order"] = gdf["Billing Account - Work Order"] = "ANER_Senegal"
+    gdf["Service Account - Work Order"] = "ANER_Senegal"
+    gdf["Billing Account - Work Order"] = "ANER_Senegal"
     gdf["Work Order Type - Work Order"] = "Installation"
     st.session_state.df = gdf
 
-    # Leer Cobertura
+    # Cobertura
     cov_raw = pd.read_csv(cov_file)
     if not {"Latitud", "Longitud", "RSSI / RSCP (dBm)"}.issubset(cov_raw.columns):
         st.error("Coverage debe tener Latitud, Longitud, RSSI / RSCP (dBm)")
@@ -125,23 +109,22 @@ if geo_file and cov_file and "processed" not in st.session_state:
 
     st.session_state.cov_df = cov_raw.copy()
 
-    # Calcular la media de cobertura para cada punto georadar
-    # Agrupamos cobertura en bins de ~1‑2 m (5 decimales ≈ 1.1 m)
-    gdf["LatBin"] = gdf["Latitude - Functional Location"].round(5)
-    gdf["LonBin"] = gdf["Longitude - Functional Location"].round(5)
-    cov_raw["LatBin"] = cov_raw["Latitud"].round(5)
-    cov_raw["LonBin"] = cov_raw["Longitud"].round(5)
+    # Añadir dBm & Gateway
+    gdf["LatBin"] = gdf["Latitude - Functional Location"].round(10)
+    gdf["LonBin"] = gdf["Longitude - Functional Location"].round(10)
+    cov_raw["LatBin"] = cov_raw["Latitud"].round(10)
+    cov_raw["LonBin"] = cov_raw["Longitud"].round(10)
+    cov_map = cov_raw.set_index(["LatBin", "LonBin"])["RSSI / RSCP (dBm)"].to_dict()
+    gdf["dBm"] = gdf.apply(lambda r: cov_map.get((r.LatBin, r.LonBin)), axis=1)
 
-    avg_cov = (
-        cov_raw.groupby(["LatBin", "LonBin"])["RSSI / RSCP (dBm)"].mean().to_dict()
-    )
-    gdf["dBm"] = gdf.apply(lambda r: avg_cov.get((r.LatBin, r.LonBin)), axis=1)
-
-    # Clasificación Gateway (ejemplo heredado)
     def classify(v):
         if pd.isna(v):
             return None
-        return "YES" if -70 <= v <= -10 else "NO" if -200 <= v < -70 else None
+        if -70 <= v <= -10:
+            return "YES"
+        if -200 <= v < -70:
+            return "NO"
+        return None
 
     gdf["Gateway"] = gdf["dBm"].apply(classify)
     gdf.drop(columns=["LatBin", "LonBin"], inplace=True)
@@ -153,103 +136,33 @@ if "processed" not in st.session_state:
     st.info("⬆️ Sube ambos CSV para continuar")
     st.stop()
 
-# ─────────────── 3) Mapa ───────────────
-
-
-def color_from_dbm(v: float | None) -> str:
-    if pd.isna(v):
-        return "gray"
-    return "green" if v >= -70 else "orange" if -80 <= v < -70 else "red"
-
-
-def add_markers(m: folium.Map, geo_df: pd.DataFrame, cov_df: pd.DataFrame):
-    cluster = MarkerCluster(name="Puntos Agrupados", spiderfy_on_max_zoom=True).add_to(m)
-
-    # Círculos (georadar)  
-    for _, r in geo_df.iterrows():
-        color = color_from_dbm(r["dBm"])
-        folium.CircleMarker(
-            location=[r["Latitude - Functional Location"], r["Longitude - Functional Location"]],
-            radius=6,
-            color=color,
-            fill=True,
-            fill_color=color,
-            tooltip=f"Georadar\nMedia dBm: {r['dBm']:.1f}" if not pd.isna(r["dBm"]) else "Georadar\nSin dBm",
-            popup=folium.Popup(
-                f"<b>Georadar</b><br>Media dBm: {r['dBm']:.1f}" if not pd.isna(r["dBm"]) else "<b>Georadar</b><br>Sin dBm",
-                max_width=200,
-            ),
-        ).add_to(cluster)
-
-    # Cuadrados (cobertura)
-    for _, r in cov_df.iterrows():
-        color = color_from_dbm(r["RSSI / RSCP (dBm)"])
-        folium.RegularPolygonMarker(
-            location=[r["Latitud"], r["Longitud"]],
-            number_of_sides=4,
-            radius=6,
-            color=color,
-            fill=True,
-            fill_color=color,
-            tooltip=f"Coverage\nRSSI: {r['RSSI / RSCP (dBm)']:.1f}",
-            popup=folium.Popup(
-                f"<b>Coverage</b><br>RSSI: {r['RSSI / RSCP (dBm)']:.1f}", max_width=200
-            ),
-        ).add_to(cluster)
-
-
-gdf = st.session_state.df.copy()
-cov_df = st.session_state.cov_df.copy()
-
-st.subheader("🗺️ Mapa de georradar y cobertura")
-center_lat, center_lon = (
-    st.session_state.geo_df["Latitud"].mean(),
-    st.session_state.geo_df["Longitud"].mean(),
-)
-map_obj = folium.Map(location=[center_lat, center_lon], zoom_start=13, control_scale=True)
-add_markers(map_obj, gdf, cov_df)
-folium.LayerControl().add_to(map_obj)
-
-st_folium(map_obj, height=450, width="100%")
-
-# ─────────────── 4) Tabla editable + herramientas ───────────────
-
+# ─────────────── 3) Tabla editable + herramientas ───────────────
 st.subheader("📑 Tabla editable")
+
 _template_cols = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
-
-# Asegurar que todas las columnas del template existen
-
 disp = st.session_state.df.copy()
 for c in _template_cols:
     if c not in disp.columns:
         disp[c] = ""
 
 disp = disp[_template_cols]
-
-# Guardar la edición en estado
 if "edited_df" not in st.session_state:
     st.session_state.edited_df = disp.copy()
 
 edited = st.data_editor(
-    st.session_state.edited_df,
-    num_rows="dynamic",
-    use_container_width=True,
-    key="editor",
+    st.session_state.edited_df, num_rows="dynamic", use_container_width=True, key="editor"
 )
-
 if st.button("💾 Guardar cambios"):
     st.session_state.edited_df = edited.copy()
     st.success("Cambios guardados.")
 
-# ─────────────── 4.1 Añadir datos en bloque ───────────────
-
+# Añadir datos en bloque
 st.markdown("### 🧩 Añadir datos en bloque")
 with st.expander("➕ Añadir valor a toda una columna"):
     editable_cols = [c for c in edited.columns if c not in PROTECTED_COLUMNS]
     col_sel = st.selectbox("Columna", editable_cols)
 
     if col_sel == "Name - Child Functional Location":
-        # Relleno dependiente
         parents = edited["Name - Parent Functional Location"].dropna().unique()
         par = parents[0] if len(parents) else None
         if par and par in PARENT_CHILD_MAP:
@@ -268,19 +181,16 @@ with st.expander("➕ Añadir valor a toda una columna"):
             st.success("Valor aplicado.")
             st.rerun()
 
-# ─────────────── 4.2 Autocompletar fechas/horas ───────────────
-
+# Autocompletar fechas/horas
 st.markdown("### ⏱️ Autocompletar fechas/horas")
 with st.expander("Rellenar columnas temporales"):
     d0 = st.date_input("Fecha inicial", value=date.today())
     t0 = st.time_input(
         "Hora inicial", value=datetime.now().time().replace(second=0, microsecond=0)
     )
-
     if st.button("🕒 Generar 27 min"):
         start_dt = datetime.combine(d0, t0)
         incs = [start_dt + timedelta(minutes=27 * i) for i in range(len(st.session_state.edited_df))]
-
         full = [
             "Promised window From - Work Order",
             "Promised window To - Work Order",
@@ -300,8 +210,7 @@ with st.expander("Rellenar columnas temporales"):
         st.success("Columnas temporales rellenadas.")
         st.rerun()
 
-# ─────────────── 4.3 Descargar a Excel ───────────────
-
+# Descargar Excel
 st.markdown("### 💾 Descargar Excel")
 if st.button("Generar y descargar Excel"):
     df_out = st.session_state.edited_df.copy()
@@ -322,5 +231,98 @@ if st.button("Generar y descargar Excel"):
         file_name=f"workorders_{ts}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+# ─────────────── 4) Mapa georadar y cobertura ───────────────
+st.subheader("🗺️ Mapa georadar y cobertura")
+
+# Preparar datos de georadar con dBm ya calculado en st.session_state.df
+geo_points = (
+    st.session_state.df[[
+        "Latitude - Functional Location",
+        "Longitude - Functional Location",
+        "dBm",
+    ]]
+    .dropna(subset=["Latitude - Functional Location", "Longitude - Functional Location"])
+    .copy()
+)
+geo_points.rename(
+    columns={
+        "Latitude - Functional Location": "lat",
+        "Longitude - Functional Location": "lon",
+        "dBm": "coverage",
+    },
+    inplace=True,
+)
+
+# Asignar color según cobertura
+
+def color_from_dbm(v: float | None):
+    if pd.isna(v):
+        return [128, 128, 128]  # gris si no hay valor
+    if v >= -70:
+        return [0, 153, 51]  # verde
+    if -80 <= v < -70:
+        return [255, 165, 0]  # naranja
+    return [255, 0, 0]  # rojo
+
+geo_points["color"] = geo_points["coverage"].apply(color_from_dbm)
+
+# Datos de cobertura originales
+cov_points = (
+    st.session_state.cov_df[["Latitud", "Longitud", "RSSI / RSCP (dBm)"]]
+    .dropna(subset=["Latitud", "Longitud"])
+    .copy()
+)
+cov_points.rename(
+    columns={
+        "Latitud": "lat",
+        "Longitud": "lon",
+        "RSSI / RSCP (dBm)": "coverage",
+    },
+    inplace=True,
+)
+cov_points["color"] = [[128, 128, 128]] * len(cov_points)  # gris fijo
+
+# Layers de PyDeck
+layers = [
+    # Capa de puntos de cobertura (gris, menor radio)
+    pdk.Layer(
+        "ScatterplotLayer",
+        data=cov_points,
+        get_position="[lon, lat]",
+        get_radius=15,
+        get_fill_color="color",
+        opacity=0.4,
+        pickable=True,
+        tooltip=True,
+    ),
+    # Capa de puntos georadar con color por dBm
+    pdk.Layer(
+        "ScatterplotLayer",
+        data=geo_points,
+        get_position="[lon, lat]",
+        get_radius=40,
+        get_fill_color="color",
+        pickable=True,
+    ),
+]
+
+# Vista inicial (centrada en la media de los puntos georadar)
+if not geo_points.empty:
+    init_view_state = pdk.ViewState(
+        latitude=geo_points["lat"].mean(),
+        longitude=geo_points["lon"].mean(),
+        zoom=12,
+    )
+else:
+    init_view_state = pdk.ViewState(latitude=0, longitude=0, zoom=2)
+
+# Tooltip
+tooltip = {
+    "html": "<b>dBm:</b> {coverage}",
+    "style": {"color": "white"},
+}
+
+st.pydeck_chart(pdk.Deck(layers=layers, initial_view_state=init_view_state, tooltip=tooltip))
 
 st.caption("Desarrollado en Streamlit • Última actualización: 2025-06-20")
