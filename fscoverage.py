@@ -7,6 +7,10 @@ import pandas as pd
 import streamlit as st
 import configparser
 
+# New: mapping support
+import folium
+from streamlit_folium import st_folium
+
 # ─────────────────────────── Config helpers ─────────────────────────────
 
 def _safe_get(cfg, sect, opt, default=""):
@@ -14,6 +18,7 @@ def _safe_get(cfg, sect, opt, default=""):
         return cfg.get(sect, opt)
     except (configparser.NoSectionError, configparser.NoOptionError):
         return default
+
 
 def load_excel_template_columns(path: str) -> List[str]:
     if os.path.exists(path):
@@ -23,8 +28,17 @@ def load_excel_template_columns(path: str) -> List[str]:
             pass
     return []
 
-def load_config(path: str = "config.ini") -> tuple[
-    List[str], Dict[str, List[str]], List[str], str, Dict[str, List[str]], str, str
+
+def load_config(
+    path: str = "config.ini",
+) -> tuple[
+    List[str],
+    Dict[str, List[str]],
+    List[str],
+    str,
+    Dict[str, List[str]],
+    str,
+    str,
 ]:
     cfg = configparser.ConfigParser()
     cfg.optionxform = str
@@ -45,12 +59,17 @@ def load_config(path: str = "config.ini") -> tuple[
     return (
         prot,
         dd_vals,
-        [c.strip() for c in _safe_get(cfg, "REQUIRED_COLUMNS", "columns").split(",") if c],
+        [
+            c.strip()
+            for c in _safe_get(cfg, "REQUIRED_COLUMNS", "columns").split(",")
+            if c
+        ],
         _safe_get(cfg, "GENERAL", "base_save_path", "output"),
         pc_map,
         _safe_get(cfg, "GENERAL", "excel_autoload_path", ""),
         _safe_get(cfg, "GENERAL", "excel_template_path", "test.xlsx"),
     )
+
 
 # ────────────────────────── Init & session ──────────────────────────────
 if "df" not in st.session_state:
@@ -85,7 +104,10 @@ if geo_file and cov_file and "processed" not in st.session_state:
 
     st.session_state.geo_df = geo_raw.copy()
     gdf = geo_raw.rename(
-        columns={"Latitud": "Latitude - Functional Location", "Longitud": "Longitude - Functional Location"}
+        columns={
+            "Latitud": "Latitude - Functional Location",
+            "Longitud": "Longitude - Functional Location",
+        }
     )
     gdf["Service Account - Work Order"] = "ANER_Senegal"
     gdf["Billing Account - Work Order"] = "ANER_Senegal"
@@ -100,12 +122,14 @@ if geo_file and cov_file and "processed" not in st.session_state:
 
     st.session_state.cov_df = cov_raw.copy()
 
-    # Añadir dBm & Gateway
-    gdf["LatBin"] = gdf["Latitude - Functional Location"].round(10)
-    gdf["LonBin"] = gdf["Longitude - Functional Location"].round(10)
-    cov_raw["LatBin"] = cov_raw["Latitud"].round(10)
-    cov_raw["LonBin"] = cov_raw["Longitud"].round(10)
-    cov_map = cov_raw.set_index(["LatBin", "LonBin"])["RSSI / RSCP (dBm)"].to_dict()
+    # Añadir dBm & Gateway (aprox exact match por lat/lon redondeado)
+    gdf["LatBin"] = gdf["Latitude - Functional Location"].round(4)
+    gdf["LonBin"] = gdf["Longitude - Functional Location"].round(4)
+    cov_raw["LatBin"] = cov_raw["Latitud"].round(4)
+    cov_raw["LonBin"] = cov_raw["Longitud"].round(4)
+    cov_map = (
+        cov_raw.set_index(["LatBin", "LonBin"])["RSSI / RSCP (dBm)"].to_dict()
+    )
     gdf["dBm"] = gdf.apply(lambda r: cov_map.get((r.LatBin, r.LonBin)), axis=1)
 
     def classify(v):
@@ -127,20 +151,93 @@ if "processed" not in st.session_state:
     st.info("⬆️ Sube ambos CSV para continuar")
     st.stop()
 
-# ─────────────── 3) Tabla editable + herramientas ───────────────
+# ─────────────── 3) Mapa interactivo ───────────────
+
+st.subheader("🗺️ Mapa de georadar y cobertura")
+
+def _color_from_dbm(val: float | None) -> str:
+    """Return hexadecimal color according to coverage value."""
+    if pd.isna(val):
+        return "#808080"  # gris para valor desconocido
+    if val >= -70:
+        return "#00cc00"  # verde
+    if -80 <= val < -70:
+        return "#ff8c00"  # naranja
+    return "#ff0000"  # rojo
+
+# DataFrames desde sesión
+geo_df = st.session_state.geo_df.copy()
+cov_df = st.session_state.cov_df.copy()
+
+# Calcular cobertura media cerca de cada punto georadar (radio aproximado)
+THRESH = 0.0005  # ~55 m
+mean_cov = []
+for _, g in geo_df.iterrows():
+    nearby = cov_df[
+        (cov_df["Latitud"].between(g["Latitud"] - THRESH, g["Latitud"] + THRESH))
+        & (cov_df["Longitud"].between(g["Longitud"] - THRESH, g["Longitud"] + THRESH))
+    ]
+    mean_cov.append(nearby["RSSI / RSCP (dBm)"].mean() if not nearby.empty else pd.NA)
+geo_df["avg_dBm"] = mean_cov
+
+# Crear mapa Folium
+center = [geo_df["Latitud"].mean(), geo_df["Longitud"].mean()]
+fol_map = folium.Map(location=center, zoom_start=13, tiles="cartodbpositron")
+
+# Añadir puntos georadar (círculos)
+for _, row in geo_df.iterrows():
+    color = _color_from_dbm(row["avg_dBm"])
+    popup_txt = (
+        f"dBm medio: {row['avg_dBm']:.1f}" if not pd.isna(row["avg_dBm"]) else "Sin cobertura"
+    )
+    folium.CircleMarker(
+        location=[row["Latitud"], row["Longitud"]],
+        radius=6,
+        color=color,
+        fill=True,
+        fill_color=color,
+        fill_opacity=0.9,
+        popup=popup_txt,
+    ).add_to(fol_map)
+
+# Añadir puntos de cobertura (cuadrados)
+for _, row in cov_df.iterrows():
+    color = _color_from_dbm(row["RSSI / RSCP (dBm)"])
+    folium.RegularPolygonMarker(
+        location=[row["Latitud"], row["Longitud"]],
+        number_of_sides=4,
+        radius=4,
+        color=color,
+        fill=True,
+        fill_color=color,
+        fill_opacity=0.6,
+        popup=f"RSSI: {row['RSSI / RSCP (dBm)']} dBm",
+    ).add_to(fol_map)
+
+# Renderizar el mapa en Streamlit
+st_folium(fol_map, width="100%", height=500)
+
+# ─────────────── 4) Tabla editable + herramientas ───────────────
 st.subheader("📑 Tabla editable")
 
 _template_cols = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
-disp = st.session_state.df.copy()
+
+# Asegurar columnas que existan
+_display = st.session_state.df.copy()
 for c in _template_cols:
-    if c not in disp.columns:
-        disp[c] = ""
+    if c not in _display.columns:
+        _display[c] = ""
+_display = _display[_template_cols]
 
-disp = disp[_template_cols]
 if "edited_df" not in st.session_state:
-    st.session_state.edited_df = disp.copy()
+    st.session_state.edited_df = _display.copy()
 
-edited = st.data_editor(st.session_state.edited_df, num_rows="dynamic", use_container_width=True, key="editor")
+edited = st.data_editor(
+    st.session_state.edited_df,
+    num_rows="dynamic",
+    use_container_width=True,
+    key="editor",
+)
 if st.button("💾 Guardar cambios"):
     st.session_state.edited_df = edited.copy()
     st.success("Cambios guardados.")
@@ -171,27 +268,32 @@ with st.expander("➕ Añadir valor a toda una columna"):
             st.rerun()
 
 # Autocompletar fechas/horas
+t_temp_cols = {
+    "full": [
+        "Promised window From - Work Order",
+        "Promised window To - Work Order",
+        "StartTime - Bookable Resource Booking",
+        "EndTime - Bookable Resource Booking",
+    ],
+    "time_only": [
+        "Time window From - Work Order",
+        "Time window To - Work Order",
+    ],
+}
+
 st.markdown("### ⏱️ Autocompletar fechas/horas")
 with st.expander("Rellenar columnas temporales"):
     d0 = st.date_input("Fecha inicial", value=date.today())
-    t0 = st.time_input("Hora inicial", value=datetime.now().time().replace(second=0, microsecond=0))
+    t0 = st.time_input(
+        "Hora inicial", value=datetime.now().time().replace(second=0, microsecond=0)
+    )
     if st.button("🕒 Generar 27 min"):
         start_dt = datetime.combine(d0, t0)
         incs = [start_dt + timedelta(minutes=27 * i) for i in range(len(st.session_state.edited_df))]
-        full = [
-            "Promised window From - Work Order",
-            "Promised window To - Work Order",
-            "StartTime - Bookable Resource Booking",
-            "EndTime - Bookable Resource Booking",
-        ]
-        time_only = [
-            "Time window From - Work Order",
-            "Time window To - Work Order",
-        ]
-        for c in full:
+        for c in t_temp_cols["full"]:
             if c in st.session_state.edited_df.columns:
                 st.session_state.edited_df[c] = incs
-        for c in time_only:
+        for c in t_temp_cols["time_only"]:
             if c in st.session_state.edited_df.columns:
                 st.session_state.edited_df[c] = [d.time().strftime("%H:%M:%S") for d in incs]
         st.success("Columnas temporales rellenadas.")
