@@ -213,7 +213,7 @@ if not st.session_state.df.empty:
                 color="green",
                 fill=True,
                 fill_opacity=0.7,
-                popup="Georadar"
+                popup=f"RSSI: {row['dBm']}"
             ).add_to(m)
 
         # Cobertura: si hay dBm, mostrar como azul
@@ -226,7 +226,7 @@ if not st.session_state.df.empty:
                         color="blue",
                         fill=True,
                         fill_opacity=0.4,
-                        popup=f"RSSI: {row['dBm']}"
+                        popup="Georadar"
                     ).add_to(m)
 
         # Mostrar el mapa en Streamlit
