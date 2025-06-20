@@ -250,7 +250,7 @@ if not st.session_state.df.empty:
                 label = f"❌ Mala cobertura (RSSI: {dBm})"
             else:
                 color = "blue"
-                label = "🗺️ Punto georadar sin cobertura"
+                label = "🗺️ Punto cobertura"
 
             folium.CircleMarker(
                 location=[lat, lon],
