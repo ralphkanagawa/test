@@ -1,3 +1,194 @@
+"""
+Streamlit version of the Potential Work Orders tool.
+---------------------------------------------------
+- Replaces all Tk/ttkbootstrap UI with Streamlit widgets.
+- Keeps the core data‑processing logic (load CSVs, match coverage, bulk add, granular editing, save to Excel).
+- Persists the working DataFrame in st.session_state so users can perform many actions without losing data.
+- Gracefully handles the absence of config.ini by falling back to sensible defaults, avoiding the previous
+  configparser.NoSectionError.
+- Uses st.date_input + st.time_input instead of the non‑existent st.datetime_input to fix the AttributeError.
+- Provides a "Añadir datos en bloque" expander with a column selector that populates correctly.
+
+How to run locally
+------------------
+bash
+pip install -r requirements.txt  # streamlit pandas openpyxl folium (optional)
+streamlit run streamlit_app.py
+
+On Streamlit Cloud push this file and a requirements.txt (see above) to GitHub and Deploy.
+"""
+
+from __future__ import annotations
+
+import io
+import os
+from datetime import datetime, timedelta, date, time
+from pathlib import Path
+from typing import Dict, List
+
+import pandas as pd
+import streamlit as st
+import configparser
+
+# -----------------------------------------------------------------------------
+# Configuration helpers
+# -----------------------------------------------------------------------------
+
+def _safe_get(config: configparser.ConfigParser, section: str, option: str, default: str = "") -> str:
+    """Return the value for *option* in *section* or *default* if the section/option is missing."""
+    try:
+        return config.get(section, option)
+    except (configparser.NoSectionError, configparser.NoOptionError):
+        return default
+
+def load_excel_template_columns(path: str) -> List[str]:
+    if not os.path.exists(path):
+        st.warning(f"Excel template not found at: {path}")
+        return []
+    try:
+        template_df = pd.read_excel(path, engine="openpyxl")
+        return template_df.columns.tolist()
+    except Exception as e:
+        st.error(f"Error loading Excel template: {e}")
+        return []
+
+
+def load_config(path: str = "config.ini") -> tuple[
+    List[str], Dict[str, List[str]], List[str], str, Dict[str, List[str]], str
+]:
+    """Load configuration from *path*; fall back to safe defaults if file or keys are missing."""
+
+    cfg = configparser.ConfigParser()
+    cfg.optionxform = str  # preserve case
+    cfg.read(path)
+
+    protected_columns = [c.strip() for c in _safe_get(cfg, "PROTECTED_COLUMNS", "columns", "").split(",") if c]
+    base_save_path = _safe_get(cfg, "GENERAL", "base_save_path", "output")
+    excel_autoload_path = _safe_get(cfg, "GENERAL", "excel_autoload_path", "")
+
+    dropdown_values: Dict[str, List[str]] = {}
+    if cfg.has_section("DROPDOWN_VALUES"):
+        for key in cfg["DROPDOWN_VALUES"]:
+            dropdown_values[key] = [x.strip() for x in cfg.get("DROPDOWN_VALUES", key).split(",")]
+
+    required_columns = [c.strip() for c in _safe_get(cfg, "REQUIRED_COLUMNS", "columns", "").split(",") if c]
+
+    parent_child_map: Dict[str, List[str]] = {}
+    if cfg.has_section("PARENT_CHILD_RELATIONS"):
+        for parent in cfg["PARENT_CHILD_RELATIONS"]:
+            parent_child_map[parent] = [x.strip() for x in cfg.get("PARENT_CHILD_RELATIONS", parent).split(",")]
+          
+    excel_template_path = _safe_get(cfg, "GENERAL", "excel_template_path", "test.xlsx")
+  
+    return (
+        protected_columns,
+        dropdown_values,
+        required_columns,
+        base_save_path,
+        parent_child_map,
+        excel_autoload_path,
+        excel_template_path
+    )
+
+
+# -----------------------------------------------------------------------------
+# App state initialisation
+# -----------------------------------------------------------------------------
+
+DEFAULT_DF = pd.DataFrame()
+
+if "df" not in st.session_state:
+    st.session_state.df = DEFAULT_DF.copy()
+
+(
+    PROTECTED_COLUMNS,
+    DROPDOWN_VALUES,
+    REQUIRED_COLUMNS,
+    BASE_SAVE_PATH,
+    PARENT_CHILD_MAP,
+    EXCEL_AUTOLOAD,
+    EXCEL_TEMPLATE_PATH,
+) = load_config()
+
+st.set_page_config(page_title="Work Orders Tool", layout="wide")
+st.title("Potential Work Orders Management (Streamlit)")
+
+# -----------------------------------------------------------------------------
+# File uploaders
+# -----------------------------------------------------------------------------
+
+col1, col2 = st.columns(2)
+
+with col1:
+    geo_file = st.file_uploader("📍 Upload Georadar CSV", type="csv", key="geo")
+
+with col2:
+    cov_file = st.file_uploader("📶 Upload Coverage CSV", type="csv", key="cov")
+
+# -----------------------------------------------------------------------------
+# Helpers for data processing
+# -----------------------------------------------------------------------------
+
+def load_georadar(csv_bytes: bytes) -> None:
+    df = pd.read_csv(io.BytesIO(csv_bytes))
+    if not {"Latitud", "Longitud"}.issubset(df.columns):
+        st.error("CSV file must contain columns 'Latitud' y 'Longitud'.")
+        return
+
+    st.session_state.df = df.rename(
+        columns={"Latitud": "Latitude - Functional Location", "Longitud": "Longitude - Functional Location"}
+    )
+    # Hard‑coded fields
+    st.session_state.df["Service Account - Work Order"] = "ANER_Senegal"
+    st.session_state.df["Billing Account - Work Order"] = "ANER_Senegal"
+    st.session_state.df["Work Order Type - Work Order"] = "Installation"
+
+    st.success("Coords updated successfully ✅")
+
+
+def load_coverage(csv_bytes: bytes) -> None:
+    if st.session_state.df.empty:
+        st.warning("First upload the Georadar file.")
+        return
+
+    cov_df = pd.read_csv(io.BytesIO(csv_bytes))
+    required = {"Latitud", "Longitud", "RSSI / RSCP (dBm)"}
+    if not required.issubset(cov_df.columns):
+        st.error("Coverage CSV file must contain Latitud, Longitud and RRSI / RSCP (dBm).")
+        return
+
+    # Binning to 1e‑10 deg for matching
+    st.session_state.df["LatBin"] = st.session_state.df["Latitude - Functional Location"].round(10)
+    st.session_state.df["LonBin"] = st.session_state.df["Longitude - Functional Location"].round(10)
+    cov_df["LatBin"] = cov_df["Latitud"].round(10)
+    cov_df["LonBin"] = cov_df["Longitud"].round(10)
+
+    cov_map = cov_df.set_index(["LatBin", "LonBin"])["RSSI / RSCP (dBm)"].to_dict()
+    st.session_state.df["dBm"] = st.session_state.df.apply(lambda r: cov_map.get((r.LatBin, r.LonBin)), axis=1)
+
+    def classify(rssi):
+        if pd.isna(rssi):
+            return None
+        if -70 <= rssi <= -10:
+            return "YES"
+        if -200 <= rssi < -70:
+            return "NO"
+        return None
+
+    st.session_state.df["Gateway"] = st.session_state.df["dBm"].apply(classify)
+    st.session_state.df.drop(columns=["LatBin", "LonBin"], inplace=True)
+
+    st.success("Coverage processed and applied ✅")
+
+
+# -----------------------------------------------------------------------------
+# Trigger processing on upload
+# -----------------------------------------------------------------------------
+
+if geo_file is not None and cov_file is not None:
+    load_georadar(geo_file.getvalue())
+    load_coverage(cov_file.getvalue())
+
 # -------------------------------------------------------------------------
 # Data editor (granular editing)
 # -------------------------------------------------------------------------
@@ -174,3 +365,8 @@ else:
             file_name = f"datos_{timestamp}.xlsx"
             st.download_button("⬇️ Descargar Excel", data=out, file_name=file_name, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
+# -----------------------------------------------------------------------------
+# Footer
+# -----------------------------------------------------------------------------
+
+st.caption("Desarrollado en Streamlit • Última actualización: 2025‑06‑17")
