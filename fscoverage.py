@@ -241,11 +241,30 @@ else:
         selected_column = st.selectbox("Selecciona columna:", editable_columns, key="block_col_selector")
 
         # Si hay valores predefinidos desde config.ini, usamos dropdown
-        predefined_values = DROPDOWN_VALUES.get(selected_column, [])
-        if predefined_values:
-            value_to_apply = st.selectbox("Selecciona valor a aplicar:", predefined_values, key="block_value_selector")
+        if selected_column == "Name - Child Functional Location":
+            # Intentar usar el valor más común en la columna "Name - Parent Functional Location"
+            if "Name - Parent Functional Location" in st.session_state.edited_df.columns:
+                parent_vals = st.session_state.edited_df["Name - Parent Functional Location"].dropna().unique()
+                parent_val = parent_vals[0] if len(parent_vals) > 0 else None
+        
+                if parent_val and parent_val in PARENT_CHILD_MAP:
+                    children = PARENT_CHILD_MAP[parent_val]
+                    value_to_apply = st.selectbox(
+                        f"Selecciona valor hijo para '{parent_val}':",
+                        children,
+                        key="block_child_value"
+                    )
+                else:
+                    st.warning("No se ha podido detectar el valor padre o no hay hijos configurados.")
+                    value_to_apply = ""
+            else:
+                st.warning("No hay columna de 'Parent Functional Location' disponible.")
+                value_to_apply = ""
+        elif selected_column in DROPDOWN_VALUES:
+            value_to_apply = st.selectbox("Selecciona valor a aplicar:", DROPDOWN_VALUES[selected_column], key="block_value_selector")
         else:
             value_to_apply = st.text_input("Escribe el valor a aplicar:", key="block_value_input")
+
 
         if st.button("📌 Aplicar valor a columna"):
             if selected_column and value_to_apply:
