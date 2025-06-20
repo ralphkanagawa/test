@@ -260,49 +260,52 @@ with st.expander("⏱️ Autocompletar fechas y horas en columnas temporales"):
         st.rerun()
 
 
-    # -------------------------------------------------------------------------
-    # Añadir datos en bloque a una columna
-    # -------------------------------------------------------------------------
-    st.subheader("🧩 Añadir datos en bloque")
+      # -------------------------------------------------------------------------
+      # Añadir datos en bloque a una columna
+      # -------------------------------------------------------------------------
+      st.subheader("🧩 Añadir datos en bloque")
+      
+      with st.expander("➕ Añadir un valor a toda una columna"):
+          if "edited_df" not in st.session_state or st.session_state.edited_df.empty:
+              st.warning("La tabla aún no ha sido cargada.")
+          else:
+              editable_columns = [col for col in st.session_state.edited_df.columns if col not in PROTECTED_COLUMNS]
+      
+              selected_column = st.selectbox("Selecciona columna:", editable_columns, key="block_col_selector")
+      
+              # Lógica especial si es columna hijo
+              if selected_column == "Name - Child Functional Location":
+                  # Buscar valor padre en el DataFrame
+                  if "Name - Parent Functional Location" in st.session_state.edited_df.columns:
+                      parent_vals = st.session_state.edited_df["Name - Parent Functional Location"].dropna().unique()
+                      parent_val = parent_vals[0] if len(parent_vals) > 0 else None
+      
+                      if parent_val and parent_val in PARENT_CHILD_MAP:
+                          children = PARENT_CHILD_MAP[parent_val]
+                          value_to_apply = st.selectbox(
+                              f"Selecciona valor hijo para '{parent_val}':",
+                              children,
+                              key="block_child_value"
+                          )
+                      else:
+                          st.warning("No se ha detectado un valor válido para el campo padre.")
+                          value_to_apply = ""
+                  else:
+                      st.warning("La columna 'Name - Parent Functional Location' no existe.")
+                      value_to_apply = ""
+              elif selected_column in DROPDOWN_VALUES:
+                  value_to_apply = st.selectbox("Selecciona valor a aplicar:", DROPDOWN_VALUES[selected_column], key="block_value_selector")
+              else:
+                  value_to_apply = st.text_input("Escribe el valor a aplicar:", key="block_value_input")
+      
+              if st.button("📌 Aplicar valor a columna"):
+                  if selected_column and value_to_apply:
+                      st.session_state.edited_df[selected_column] = value_to_apply
+                      st.success(f"Se aplicó '{value_to_apply}' a la columna '{selected_column}'.")
+                      st.rerun()
+                  else:
+                      st.error("Debes seleccionar una columna y un valor válidos.")
 
-    with st.expander("➕ Añadir un valor a toda una columna"):
-        editable_columns = [col for col in st.session_state.edited_df.columns if col not in PROTECTED_COLUMNS]
-
-        selected_column = st.selectbox("Selecciona columna:", editable_columns, key="block_col_selector")
-
-        # Si hay valores predefinidos desde config.ini, usamos dropdown
-        if selected_column == "Name - Child Functional Location":
-            # Intentar usar el valor más común en la columna "Name - Parent Functional Location"
-            if "Name - Parent Functional Location" in st.session_state.edited_df.columns:
-                parent_vals = st.session_state.edited_df["Name - Parent Functional Location"].dropna().unique()
-                parent_val = parent_vals[0] if len(parent_vals) > 0 else None
-        
-                if parent_val and parent_val in PARENT_CHILD_MAP:
-                    children = PARENT_CHILD_MAP[parent_val]
-                    value_to_apply = st.selectbox(
-                        f"Selecciona valor hijo para '{parent_val}':",
-                        children,
-                        key="block_child_value"
-                    )
-                else:
-                    st.warning("No se ha podido detectar el valor padre o no hay hijos configurados.")
-                    value_to_apply = ""
-            else:
-                st.warning("No hay columna de 'Parent Functional Location' disponible.")
-                value_to_apply = ""
-        elif selected_column in DROPDOWN_VALUES:
-            value_to_apply = st.selectbox("Selecciona valor a aplicar:", DROPDOWN_VALUES[selected_column], key="block_value_selector")
-        else:
-            value_to_apply = st.text_input("Escribe el valor a aplicar:", key="block_value_input")
-
-
-        if st.button("📌 Aplicar valor a columna"):
-            if selected_column and value_to_apply:
-                st.session_state.edited_df[selected_column] = value_to_apply
-                st.success(f"Se aplicó '{value_to_apply}' a la columna '{selected_column}'.")
-                st.rerun()  # 🚀 Fuerza el refresco inmediato del editor
-            else:
-                st.error("Debes seleccionar una columna y un valor válidos.")
               
     # ---------------------------------------------------------------------
     # Guardar / descargar Excel
