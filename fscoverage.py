@@ -258,7 +258,7 @@ geo_points.rename(
 
 def color_from_dbm(v: float | None):
     if pd.isna(v):
-        return [128, 128, 128]  # gris si no hay valor
+        return [0, 0, 0]  # gris si no hay valor
     if v >= -70:
         return [0, 153, 51]  # verde
     if -80 <= v < -70:
