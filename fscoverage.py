@@ -179,7 +179,8 @@ else:
     st.stop()
 
 # ─────────────── 4) Tabla editable + utilidades ────────────────
-st.subheader("📑 Tabla editable")
+st.markdown("### 📑 Tabla editable", unsafe_allow_html=True)
+st.markdown("<div style='margin-top: -30px;'></div>", unsafe_allow_html=True)
 
 tmpl_cols = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
 disp_df = st.session_state.df.copy()
