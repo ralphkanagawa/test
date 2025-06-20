@@ -202,102 +202,85 @@ import folium
 from folium.plugins import MarkerCluster
 from streamlit_folium import st_folium
 
-st.set_page_config(page_title="Visualizador de Cobertura Agrupada", layout="wide")
-st.title("📡 Visualizador de Cobertura Agrupada")
+st.set_page_config(page_title="Mapa + Tabla", layout="wide")
+st.title("📍 Mapa y Tabla a partir de dos CSV")
 
-# ------------------------------------------------------------------------------
-# Subida de archivos
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------
+# 1. Subida y almacenamiento persistente de los CSV
+# --------------------------------------------------------------------------
 
-col1, col2 = st.columns(2)
+def subir_csv(label, key, columnas_minimas):
+    """Devuelve el DataFrame si el usuario ha subido archivo y cumple columnas."""
+    if key not in st.session_state:
+        archivo = st.file_uploader(label, type="csv", key=key)
+        if archivo:
+            df = pd.read_csv(archivo)
+            if not set(columnas_minimas).issubset(df.columns):
+                st.error(f"❌ Faltan columnas {columnas_minimas} en el CSV.")
+            else:
+                st.session_state[key] = df.copy()
+    return st.session_state.get(key)
 
-with col1:
-    file_puntos = st.file_uploader("📍 Subir archivo de puntos (luminarias)", type="csv", key="puntos")
+df_puntos    = subir_csv("📥 CSV de PUNTOS (Latitud, Longitud)", "df_puntos", ["Latitud", "Longitud"])
+df_cobertura = subir_csv("📥 CSV de COBERTURA (Latitud, Longitud, RSSI)", "df_cobertura",
+                         ["Latitud", "Longitud", "RSSI / RSCP (dBm)"])
 
-with col2:
-    file_cobertura = st.file_uploader("📶 Subir archivo de cobertura", type="csv", key="cobertura")
+# --------------------------------------------------------------------------
+# 2. Cuando están ambos, producimos mapa + tabla
+# --------------------------------------------------------------------------
 
-# ------------------------------------------------------------------------------
-# Procesamiento y visualización
-# ------------------------------------------------------------------------------
+if df_puntos is not None and df_cobertura is not None:
+    # --------- Prepara cobertura agrupada y coloreada
+    cov = df_cobertura.copy()
+    cov["LatBin"] = cov["Latitud"].round(10)
+    cov["LonBin"] = cov["Longitud"].round(10)
+    cov_grp = cov.groupby(["LatBin", "LonBin"]).agg(
+        Latitud=("Latitud", "mean"),
+        Longitud=("Longitud", "mean"),
+        RSSI = ("RSSI / RSCP (dBm)", "mean")
+    ).reset_index(drop=True)
 
-if file_puntos is not None:
-    try:
-        df_puntos = pd.read_csv(file_puntos)
+    def color_rssi(v):
+        if v >= -70:          return "green"
+        elif v >= -80:        return "orange"
+        else:                 return "red"
+    cov_grp["color"] = cov_grp["RSSI"].apply(color_rssi)
 
-        if not all(col in df_puntos.columns for col in ["Latitud", "Longitud"]):
-            st.error("❌ El archivo de puntos debe tener columnas 'Latitud' y 'Longitud'.")
-            st.stop()
+    # --------- Construir mapa
+    mapa = folium.Map(location=[df_puntos["Latitud"].mean(),
+                                df_puntos["Longitud"].mean()],
+                      zoom_start=12)
 
-        # Crear mapa base centrado en los puntos de luminarias
-        m = folium.Map(
-            location=[df_puntos["Latitud"].mean(), df_puntos["Longitud"].mean()],
-            zoom_start=12
-        )
+    # Puntos de luminarias (azul)
+    cluster = MarkerCluster().add_to(mapa)
+    for _, r in df_puntos.iterrows():
+        folium.Marker([r.Latitud, r.Longitud],
+                      icon=folium.Icon(color="blue"),
+                      popup=r.to_json()).add_to(cluster)
 
-        marker_cluster = MarkerCluster().add_to(m)
+    # Cobertura agrupada (verde/naranja/rojo)
+    for _, r in cov_grp.iterrows():
+        folium.CircleMarker(
+            location=[r.Latitud, r.Longitud],
+            radius=6,
+            color=r.color,
+            fill=True,
+            fill_color=r.color,
+            fill_opacity=0.7,
+            popup=f"RSSI medio: {r.RSSI:.1f} dBm"
+        ).add_to(mapa)
 
-        for _, row in df_puntos.iterrows():
-            folium.Marker(
-                location=[row["Latitud"], row["Longitud"]],
-                popup=row.to_string(),
-                icon=folium.Icon(color="blue", icon="info-sign")
-            ).add_to(marker_cluster)
+    # --------- Mostrar resultado en dos pestañas
+    tab_mapa, tab_tabla = st.tabs(["🌍 Mapa", "📑 Tabla cobertura agr."])
 
-        # ----------------------------------------------------------------------
-        # Procesar cobertura si se sube
-        # ----------------------------------------------------------------------
-        if file_cobertura is not None:
-            df_cobertura = pd.read_csv(file_cobertura)
+    with tab_mapa:
+        st_folium(mapa, width=1100, height=600)
 
-            if not all(col in df_cobertura.columns for col in ["Latitud", "Longitud"]):
-                st.error("❌ El archivo de cobertura debe tener columnas 'Latitud' y 'Longitud'.")
-                st.stop()
+    with tab_tabla:
+        st.data_editor(cov_grp, use_container_width=True)
 
-            if "RSSI / RSCP (dBm)" not in df_cobertura.columns:
-                st.error("❌ Falta la columna 'RSSI / RSCP (dBm)' en el archivo de cobertura.")
-                st.stop()
-
-            df_cobertura["LatBin"] = df_cobertura["Latitud"].round(10)
-            df_cobertura["LonBin"] = df_cobertura["Longitud"].round(10)
-
-            grouped = df_cobertura.groupby(["LatBin", "LonBin"]).agg({
-                "Latitud": "mean",
-                "Longitud": "mean",
-                "RSSI / RSCP (dBm)": "mean"
-            }).reset_index()
-
-            def clasificar_color(rssi):
-                if rssi >= -70:
-                    return "green"
-                elif -80 <= rssi < -70:
-                    return "orange"
-                else:
-                    return "red"
-
-            grouped["color"] = grouped["RSSI / RSCP (dBm)"].apply(clasificar_color)
-
-            for _, row in grouped.iterrows():
-                popup_text = f"📶 Media RSSI: {row['RSSI / RSCP (dBm)']:.2f} dBm"
-                folium.CircleMarker(
-                    location=[row["Latitud"], row["Longitud"]],
-                    radius=6,
-                    color=row["color"],
-                    fill=True,
-                    fill_color=row["color"],
-                    fill_opacity=0.6,
-                    popup=popup_text
-                ).add_to(m)
-
-        # ----------------------------------------------------------------------
-        # Mostrar mapa
-        # ----------------------------------------------------------------------
-        st.subheader("🗺️ Mapa interactivo")
-        st_folium(m, width=1100, height=600)
-
-    except Exception as e:
-        st.error(f"❌ Error procesando los archivos: {e}")
-
+else:
+    st.info("🔼 Sube **ambos** CSV para generar mapa y tabla.")
 
 # -------------------------------------------------------------------------
 # Data editor (granular editing)
