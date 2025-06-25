@@ -258,7 +258,7 @@ geo_points.rename(
 
 def color_from_dbm(v: float | None):
     if pd.isna(v):
-        return [0, 0, 0]  # gris si no hay valor
+        return [255, 255, 255]  # gris si no hay valor
     if v >= -70:
         return [0, 153, 51]  # verde
     if -80 <= v < -70:
@@ -290,7 +290,7 @@ layers = [
         "ScatterplotLayer",
         data=cov_points,
         get_position="[lon, lat]",
-        get_radius=4,
+        get_radius=8,
         get_fill_color="color",
         opacity=0.4,
         pickable=True,
@@ -301,7 +301,7 @@ layers = [
         "ScatterplotLayer",
         data=geo_points,
         get_position="[lon, lat]",
-        get_radius=2,
+        get_radius=4,
         get_fill_color="color",
         pickable=True,
     ),
