@@ -312,7 +312,7 @@ if not geo_points.empty:
     init_view_state = pdk.ViewState(
         latitude=geo_points["lat"].mean(),
         longitude=geo_points["lon"].mean(),
-        zoom=12,
+        zoom=40,
     )
 else:
     init_view_state = pdk.ViewState(latitude=0, longitude=0, zoom=2)
@@ -327,7 +327,7 @@ tooltip = {
 
 st.pydeck_chart(
     pdk.Deck(layers=layers, initial_view_state=init_view_state, tooltip=tooltip),
-    height=700  # puedes ajustar a 800, 900 si quieres más espacio
+    height=900  # puedes ajustar a 800, 900 si quieres más espacio
 )
 
 
