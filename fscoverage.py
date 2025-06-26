@@ -136,6 +136,27 @@ if "processed" not in st.session_state:
     st.info("⬆️ Sube ambos CSV para continuar")
     st.stop()
 
+# ─────────────── 3) Tabla editable + herramientas ───────────────
+#st.subheader("📑 Tabla editable")
+
+_template_cols = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
+disp = st.session_state.df.copy()
+for c in _template_cols:
+    if c not in disp.columns:
+        disp[c] = ""
+
+disp = disp[_template_cols]
+if "edited_df" not in st.session_state:
+    st.session_state.edited_df = disp.copy()
+
+edited = st.data_editor(
+    st.session_state.edited_df, num_rows="dynamic", use_container_width=True, key="editor"
+)
+if st.button("💾 Guardar cambios"):
+    st.session_state.edited_df = edited.copy()
+    st.success("Cambios guardados.")
+
+
 #st.markdown("### 🧰 Herramientas adicionales")
 col1, col2, col3 = st.columns(3)
 
@@ -210,28 +231,6 @@ with col3.expander("💾 Descargar Excel"):
             file_name=f"workorders_{ts}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-
-# ─────────────── 3) Tabla editable + herramientas ───────────────
-#st.subheader("📑 Tabla editable")
-
-_template_cols = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
-disp = st.session_state.df.copy()
-for c in _template_cols:
-    if c not in disp.columns:
-        disp[c] = ""
-
-disp = disp[_template_cols]
-if "edited_df" not in st.session_state:
-    st.session_state.edited_df = disp.copy()
-
-edited = st.data_editor(
-    st.session_state.edited_df, num_rows="dynamic", use_container_width=True, key="editor"
-)
-if st.button("💾 Guardar cambios"):
-    st.session_state.edited_df = edited.copy()
-    st.success("Cambios guardados.")
-
-
 
 # ─────────────── 4) Mapa georadar y cobertura ───────────────
 #st.subheader("🗺️ Mapa georadar y cobertura")
