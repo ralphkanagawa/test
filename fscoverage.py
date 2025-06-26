@@ -312,7 +312,7 @@ if not geo_points.empty:
     init_view_state = pdk.ViewState(
         latitude=geo_points["lat"].mean(),
         longitude=geo_points["lon"].mean(),
-        zoom=20,
+        zoom=12,
     )
 else:
     init_view_state = pdk.ViewState(latitude=0, longitude=0, zoom=2)
