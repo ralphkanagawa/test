@@ -72,7 +72,7 @@ if "df" not in st.session_state:
 ) = load_config()
 
 st.set_page_config(page_title="Work Orders Tool", layout="wide")
-st.title("Potential Work Orders Management (Streamlit)")
+#st.title("Potential Work Orders Management (Streamlit)")
 
 # ─────────────── 1) Carga CSV ───────────────
 col_geo, col_cov = st.columns(2)
