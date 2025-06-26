@@ -323,6 +323,12 @@ tooltip = {
     "style": {"color": "white"},
 }
 
-st.pydeck_chart(pdk.Deck(layers=layers, initial_view_state=init_view_state, tooltip=tooltip))
+#st.pydeck_chart(pdk.Deck(layers=layers, initial_view_state=init_view_state, tooltip=tooltip))
+
+st.pydeck_chart(
+    pdk.Deck(layers=layers, initial_view_state=init_view_state, tooltip=tooltip),
+    height=700  # puedes ajustar a 800, 900 si quieres más espacio
+)
+
 
 st.caption("Desarrollado en Streamlit • Última actualización: 2025-06-20")
