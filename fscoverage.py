@@ -130,7 +130,7 @@ if geo_file and cov_file and "processed" not in st.session_state:
     gdf.drop(columns=["LatBin", "LonBin"], inplace=True)
 
     st.session_state.processed = True
-    st.success("✔ Datos procesados")
+    #st.success("✔ Datos procesados")
 
 if "processed" not in st.session_state:
     st.info("⬆️ Sube ambos CSV para continuar")
