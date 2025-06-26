@@ -156,39 +156,39 @@ if st.button("💾 Guardar cambios"):
     st.session_state.edited_df = edited.copy()
     st.success("Cambios guardados.")
 
-# Añadir datos en bloque
-st.markdown("### 🧩 Añadir datos en bloque")
-with st.expander("➕ Añadir valor a toda una columna"):
+
+st.markdown("### 🧰 Herramientas adicionales")
+col1, col2, col3 = st.columns(3)
+
+# --- Añadir datos en bloque ---
+with col1.expander("➕ Añadir datos en bloque"):
     editable_cols = [c for c in edited.columns if c not in PROTECTED_COLUMNS]
-    col_sel = st.selectbox("Columna", editable_cols)
+    col_sel = st.selectbox("Columna", editable_cols, key="col_sel")
 
     if col_sel == "Name - Child Functional Location":
         parents = edited["Name - Parent Functional Location"].dropna().unique()
         par = parents[0] if len(parents) else None
         if par and par in PARENT_CHILD_MAP:
-            val = st.selectbox("Valor hijo", PARENT_CHILD_MAP[par])
+            val = st.selectbox("Valor hijo", PARENT_CHILD_MAP[par], key="child_val")
         else:
             st.warning("Define primero 'Parent Functional Location'.")
             val = ""
     elif col_sel in DROPDOWN_VALUES:
-        val = st.selectbox("Valor", DROPDOWN_VALUES[col_sel])
+        val = st.selectbox("Valor", DROPDOWN_VALUES[col_sel], key="dropdown_val")
     else:
-        val = st.text_input("Valor")
+        val = st.text_input("Valor", key="text_val")
 
-    if st.button("📌 Aplicar"):
+    if st.button("📌 Aplicar", key="apply_val"):
         if col_sel and val:
             st.session_state.edited_df[col_sel] = val
             st.success("Valor aplicado.")
             st.rerun()
 
-# Autocompletar fechas/horas
-st.markdown("### ⏱️ Autocompletar fechas/horas")
-with st.expander("Rellenar columnas temporales"):
-    d0 = st.date_input("Fecha inicial", value=date.today())
-    t0 = st.time_input(
-        "Hora inicial", value=datetime.now().time().replace(second=0, microsecond=0)
-    )
-    if st.button("🕒 Generar 27 min"):
+# --- Autocompletar fechas/horas ---
+with col2.expander("⏱️ Autocompletar fechas/horas"):
+    d0 = st.date_input("Fecha inicial", value=date.today(), key="fecha_ini")
+    t0 = st.time_input("Hora inicial", value=datetime.now().time().replace(second=0, microsecond=0), key="hora_ini")
+    if st.button("🕒 Generar 27 min", key="gen_27min"):
         start_dt = datetime.combine(d0, t0)
         incs = [start_dt + timedelta(minutes=27 * i) for i in range(len(st.session_state.edited_df))]
         full = [
@@ -210,27 +210,28 @@ with st.expander("Rellenar columnas temporales"):
         st.success("Columnas temporales rellenadas.")
         st.rerun()
 
-# Descargar Excel
-st.markdown("### 💾 Descargar Excel")
-if st.button("Generar y descargar Excel"):
-    df_out = st.session_state.edited_df.copy()
-    for c in _template_cols:
-        if c not in df_out.columns:
-            df_out[c] = ""
-    df_out = df_out[_template_cols]
+# --- Descargar Excel ---
+with col3.expander("💾 Descargar Excel"):
+    if st.button("Generar y descargar Excel", key="gen_excel"):
+        df_out = st.session_state.edited_df.copy()
+        for c in _template_cols:
+            if c not in df_out.columns:
+                df_out[c] = ""
+        df_out = df_out[_template_cols]
 
-    buf = io.BytesIO()
-    with pd.ExcelWriter(buf, engine="openpyxl") as w:
-        df_out.to_excel(w, index=False)
-    buf.seek(0)
+        buf = io.BytesIO()
+        with pd.ExcelWriter(buf, engine="openpyxl") as w:
+            df_out.to_excel(w, index=False)
+        buf.seek(0)
 
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    st.download_button(
-        "⬇️ Descargar Excel",
-        data=buf,
-        file_name=f"workorders_{ts}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        st.download_button(
+            "⬇️ Descargar Excel",
+            data=buf,
+            file_name=f"workorders_{ts}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
 
 # ─────────────── 4) Mapa georadar y cobertura ───────────────
 st.subheader("🗺️ Mapa georadar y cobertura")
