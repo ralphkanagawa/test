@@ -78,43 +78,63 @@ st.set_page_config(page_title="Potential Work Orders Management", layout="wide")
 #st.title("Potential Work Orders Management (Streamlit)")
 
 # ─────────────── 1) Carga CSV ───────────────
+# ─────────────── 1) Carga CSV ───────────────
+if "processed" not in st.session_state:
+    col_geo, col_cov = st.columns([1, 1])
+    with col_geo:
+        geo_file = st.file_uploader("📍 Georadar CSV", type="csv")
+    with col_cov:
+        cov_file = st.file_uploader("📶 Coverage CSV", type="csv")
 
-st.markdown("""
-<style>
-/* Reduce el padding y tamaño general del uploader */
-section[data-testid="stFileUploader"] {
-    padding: 0.25rem 0.5rem !important;
-    margin: 0 !important;
-    max-width: 20px !important;
-}
+    # Comprobación tras carga
+    if geo_file and cov_file:
+        # Procesamiento como ya tienes abajo
+        geo_raw = pd.read_csv(geo_file)
+        if not {"Latitud", "Longitud"}.issubset(geo_raw.columns):
+            st.error("Georadar debe tener columnas Latitud y Longitud")
+            st.stop()
 
-/* Reduce el espacio interno del botón */
-section[data-testid="stFileUploader"] button {
-    padding: 0.3rem 0.7rem !important;
-    font-size: 0.85rem !important;
-}
+        st.session_state.geo_df = geo_raw.copy()
+        gdf = geo_raw.rename(columns={
+            "Latitud": "Latitude - Functional Location",
+            "Longitud": "Longitude - Functional Location",
+        })
+        gdf["Service Account - Work Order"] = "ANER_Senegal"
+        gdf["Billing Account - Work Order"] = "ANER_Senegal"
+        gdf["Work Order Type - Work Order"] = "Installation"
+        st.session_state.df = gdf
 
-/* Reduce altura del contenedor de drop */
-div[data-testid="stFileDropzone"] {
-    padding: 0.5rem !important;
-    min-height: 10px !important;  /* por defecto es ~140px */
-    border-radius: 0.5rem;
-}
+        cov_raw = pd.read_csv(cov_file)
+        if not {"Latitud", "Longitud", "RSSI / RSCP (dBm)"}.issubset(cov_raw.columns):
+            st.error("Coverage debe tener Latitud, Longitud, RSSI / RSCP (dBm)")
+            st.stop()
 
-/* Reduce tamaño del texto (arrastrar, límite, etc) */
-div[data-testid="stFileDropzone"] span,
-div[data-testid="stFileDropzone"] small {
-    font-size: 0.8rem !important;
-}
-</style>
-""", unsafe_allow_html=True)
+        st.session_state.cov_df = cov_raw.copy()
 
+        gdf["LatBin"] = gdf["Latitude - Functional Location"].round(10)
+        gdf["LonBin"] = gdf["Longitude - Functional Location"].round(10)
+        cov_raw["LatBin"] = cov_raw["Latitud"].round(10)
+        cov_raw["LonBin"] = cov_raw["Longitud"].round(10)
+        cov_map = cov_raw.set_index(["LatBin", "LonBin"])["RSSI / RSCP (dBm)"].to_dict()
+        gdf["dBm"] = gdf.apply(lambda r: cov_map.get((r.LatBin, r.LonBin)), axis=1)
 
-col_geo, col_cov = st.columns([1, 1])
-with col_geo:
-    geo_file = st.file_uploader("📍 Georadar CSV", type="csv")
-with col_cov:
-    cov_file = st.file_uploader("📶 Coverage CSV", type="csv")
+        def classify(v):
+            if pd.isna(v):
+                return None
+            if -70 <= v <= -10:
+                return "YES"
+            if -200 <= v < -70:
+                return "NO"
+            return None
+
+        gdf["Gateway"] = gdf["dBm"].apply(classify)
+        gdf.drop(columns=["LatBin", "LonBin"], inplace=True)
+
+        st.session_state.processed = True
+        st.rerun()  # Forzar actualización para ocultar los uploaders
+else:
+    st.markdown("✔️ CSVs cargados y procesados correctamente.")
+
 
 # ─────────────── 2) Procesamiento una única vez ───────────────
 if geo_file and cov_file and "processed" not in st.session_state:
