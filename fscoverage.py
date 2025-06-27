@@ -247,7 +247,8 @@ edited = st.data_editor(
 col1, col2, col3 = st.columns(3)
 
 # --- Añadir datos en bloque ---
-with col1.expander("➕ Añadir datos en bloque"):
+with col1:
+    st.markdown("### ➕ Añadir datos en bloque")
     editable_cols = [c for c in edited.columns if c not in PROTECTED_COLUMNS]
     col_sel = st.selectbox("Columna", editable_cols, key="col_sel")
 
@@ -271,12 +272,14 @@ with col1.expander("➕ Añadir datos en bloque"):
             st.rerun()
 
 # --- Autocompletar fechas/horas ---
-with col2.expander("⏱️ Autocompletar fechas/horas"):
+with col2:
+    st.markdown("### ⏱️ Autocompletar fechas/horas")
     d0 = st.date_input("Fecha inicial", value=date.today(), key="fecha_ini")
     t0 = st.time_input("Hora inicial", value=datetime.now().time().replace(second=0, microsecond=0), key="hora_ini")
     if st.button("🕒 Generar 27 min", key="gen_27min"):
         start_dt = datetime.combine(d0, t0)
         incs = [start_dt + timedelta(minutes=27 * i) for i in range(len(st.session_state.edited_df))]
+
         full = [
             "Promised window From - Work Order",
             "Promised window To - Work Order",
@@ -297,7 +300,8 @@ with col2.expander("⏱️ Autocompletar fechas/horas"):
         st.rerun()
 
 # --- Descargar Excel ---
-with col3.expander("💾 Descargar Excel"):
+with col3:
+    st.markdown("### 💾 Descargar Excel")
     if st.button("Generar y descargar Excel", key="gen_excel"):
         df_out = st.session_state.edited_df.copy()
         for c in _template_cols:
@@ -317,6 +321,7 @@ with col3.expander("💾 Descargar Excel"):
             file_name=f"workorders_{ts}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
+
 
 # ───────────────  Mapa georadar y cobertura ───────────────
 #st.subheader("🗺️ Mapa georadar y cobertura")
