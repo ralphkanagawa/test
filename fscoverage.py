@@ -79,38 +79,11 @@ st.set_page_config(page_title="Potential Work Orders Management", layout="wide")
 
 # ─────────────── 1) Carga CSV ───────────────
 
-#col_geo, col_cov = st.columns([1, 1])
-#with col_geo:
-#    geo_file = st.file_uploader("📍 Georadar CSV", type="csv")
-#with col_cov:
-#    cov_file = st.file_uploader("📶 Coverage CSV", type="csv")
-
-geo_file_container, cov_file_container = st.columns(2)
-
-with geo_file_container:
-    st.markdown("**📍 Georadar CSV**")
-    components.html("""
-        <input type="file" id="geoFile" accept=".csv" />
-        <script>
-        const input = window.parent.document.querySelector('#geoFile');
-        input.style.marginTop = '8px';
-        input.style.padding = '8px';
-        input.style.fontSize = '14px';
-        </script>
-    """, height=35)
-
-with cov_file_container:
-    st.markdown("**📶 Coverage CSV**")
-    components.html("""
-        <input type="file" id="covFile" accept=".csv" />
-        <script>
-        const input = window.parent.document.querySelector('#covFile');
-        input.style.marginTop = '8px';
-        input.style.padding = '8px';
-        input.style.fontSize = '14px';
-        </script>
-    """, height=35)
-
+col_geo, col_cov = st.columns([1, 1])
+with col_geo:
+    geo_file = st.file_uploader("📍 Georadar CSV", type="csv")
+with col_cov:
+    cov_file = st.file_uploader("📶 Coverage CSV", type="csv")
 
 # ─────────────── 2) Procesamiento una única vez ───────────────
 if geo_file and cov_file and "processed" not in st.session_state:
