@@ -77,7 +77,7 @@ if "df" not in st.session_state:
 st.set_page_config(page_title="Potential Work Orders Management", layout="wide")
 #st.title("Potential Work Orders Management (Streamlit)")
 
-# ─────────────── 1) Carga CSV ───────────────
+# ───────────────  Carga CSV ───────────────
 
 geo_file = None
 cov_file = None
@@ -139,7 +139,7 @@ else:
     st.markdown("✔️ CSVs cargados y procesados correctamente.")
 
 
-# ─────────────── 2) Procesamiento una única vez ───────────────
+# ───────────────  Procesamiento una única vez ───────────────
 if geo_file and cov_file and "processed" not in st.session_state:
     # Georadar
     geo_raw = pd.read_csv(geo_file)
@@ -194,7 +194,25 @@ if "processed" not in st.session_state:
     st.info("⬆️ Sube ambos CSV para continuar")
     st.stop()
 
-# ─────────────── 3) Tabla editable + herramientas ───────────────
+# ───────────────  Controles superiores ───────────────
+edited = st.data_editor(
+    st.session_state.edited_df, num_rows="dynamic", use_container_width=True, key="editor"
+)
+
+col_left, col_right = st.columns([1, 1])
+
+with col_left:
+    if st.button("🔁 Volver a cargar archivos"):
+        for k in ["processed", "df", "geo_df", "cov_df", "edited_df"]:
+            st.session_state.pop(k, None)
+        st.rerun()
+
+with col_right:
+    if st.button("💾 Guardar cambios", key="save_changes_top"):
+        st.session_state.edited_df = st.session_state.edited_df.copy()
+        st.success("Cambios guardados.")
+
+# ───────────────  Tabla editable + herramientas ───────────────
 #st.subheader("📑 Tabla editable")
 
 _template_cols = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
@@ -210,9 +228,9 @@ if "edited_df" not in st.session_state:
 edited = st.data_editor(
     st.session_state.edited_df, num_rows="dynamic", use_container_width=True, key="editor"
 )
-if st.button("💾 Guardar cambios"):
-    st.session_state.edited_df = edited.copy()
-    st.success("Cambios guardados.")
+#if st.button("💾 Guardar cambios"):
+#    st.session_state.edited_df = edited.copy()
+#    st.success("Cambios guardados.")
 
 
 #st.markdown("### 🧰 Herramientas adicionales")
@@ -290,7 +308,7 @@ with col3.expander("💾 Descargar Excel"):
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
-# ─────────────── 4) Mapa georadar y cobertura ───────────────
+# ───────────────  Mapa georadar y cobertura ───────────────
 #st.subheader("🗺️ Mapa georadar y cobertura")
 
 # Preparar datos de georadar con dBm ya calculado en st.session_state.df
