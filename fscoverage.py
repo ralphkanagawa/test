@@ -78,19 +78,22 @@ st.set_page_config(page_title="Potential Work Orders Management", layout="wide")
 
 st.markdown("""
     <style>
-    /* Oculta el texto de "Drag and drop" */
-    .stFileUploader > div > div {
-        display: none;
+    /* Ocultar "Drag and drop file here" y descripción de tamaño */
+    .stFileUploader > label div:nth-child(2),
+    .stFileUploader small {
+        display: none !important;
     }
 
-    /* Oculta el texto de límite de tamaño */
-    .stFileUploader > div > small {
-        display: none;
-    }
-
-    /* Ajusta el ancho del botón para hacerlo más compacto */
+    /* Reducir ancho del contenedor y alinear a la izquierda */
     .stFileUploader {
-        width: 200px;
+        max-width: 200px !important;
+        margin: 0 !important;
+    }
+
+    /* Opcional: reducir tamaño del botón Browse */
+    .stFileUploader button {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.9rem;
     }
     </style>
 """, unsafe_allow_html=True)
