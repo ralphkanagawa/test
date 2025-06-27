@@ -85,7 +85,7 @@ st.markdown("""
 section[data-testid="stFileUploader"] {
     padding: 0.25rem 0.5rem !important;
     margin: 0 !important;
-    max-width: 220px !important;
+    max-width: 20px !important;
 }
 
 /* Reduce el espacio interno del botón */
@@ -97,7 +97,7 @@ section[data-testid="stFileUploader"] button {
 /* Reduce altura del contenedor de drop */
 div[data-testid="stFileDropzone"] {
     padding: 0.5rem !important;
-    min-height: 80px !important;  /* por defecto es ~140px */
+    min-height: 10px !important;  /* por defecto es ~140px */
     border-radius: 0.5rem;
 }
 
