@@ -78,27 +78,26 @@ st.set_page_config(page_title="Potential Work Orders Management", layout="wide")
 
 st.markdown("""
     <style>
-    /* Ocultar "Drag and drop file here" y descripción de tamaño */
-    .stFileUploader > label div:nth-child(2),
-    .stFileUploader small {
-        display: none !important;
+    /* Oculta todo el cuadro de dropzone (incluido ícono y texto) */
+    div[data-testid="stFileUploader"] > div {
+        display: none;
     }
 
-    /* Reducir ancho del contenedor y alinear a la izquierda */
-    .stFileUploader {
-        max-width: 200px !important;
-        margin: 0 !important;
+    /* Muestra solo el botón Browse (input[type=file]) */
+    div[data-testid="stFileUploader"] {
+        border: none;
+        background: none;
+        padding: 0;
     }
 
-    /* Opcional: reducir tamaño del botón Browse */
-    .stFileUploader button {
-        padding: 0.25rem 0.5rem;
-        font-size: 0.9rem;
+    /* Ajusta ancho máximo del uploader */
+    div[data-testid="stFileUploader"] {
+        max-width: 180px;
     }
     </style>
 """, unsafe_allow_html=True)
 
-col_geo, col_cov = st.columns(2)
+col_geo, col_cov = st.columns([1, 1])
 with col_geo:
     geo_file = st.file_uploader("📍 Georadar CSV", type="csv")
 with col_cov:
