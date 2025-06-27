@@ -71,7 +71,7 @@ if "df" not in st.session_state:
     EXCEL_TEMPLATE_PATH,
 ) = load_config()
 
-st.set_page_config(page_title="Work Orders Tool", layout="wide")
+st.set_page_config(page_title="Potential Work Orders Management", layout="wide")
 #st.title("Potential Work Orders Management (Streamlit)")
 
 # ─────────────── 1) Carga CSV ───────────────
