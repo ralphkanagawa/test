@@ -78,7 +78,10 @@ st.set_page_config(page_title="Potential Work Orders Management", layout="wide")
 #st.title("Potential Work Orders Management (Streamlit)")
 
 # ─────────────── 1) Carga CSV ───────────────
-# ─────────────── 1) Carga CSV ───────────────
+
+geo_file = None
+cov_file = None
+
 if "processed" not in st.session_state:
     col_geo, col_cov = st.columns([1, 1])
     with col_geo:
