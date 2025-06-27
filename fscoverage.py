@@ -196,7 +196,7 @@ if "processed" not in st.session_state:
 
 # ───────────────  Controles superiores ───────────────
 
-col_left, _, col_right = st.columns([1, 6, 1])
+col_left, col_right = st.columns([1, 1])
 
 with col_left:
     if st.button("🔁 Volver a cargar archivos"):
