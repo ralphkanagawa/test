@@ -217,8 +217,6 @@ with col_left:
         """,
         unsafe_allow_html=True
     )
-
-    if st.button("🔁 Volver a cargar archivos"):
         for k in ["processed", "df", "geo_df", "cov_df", "edited_df"]:
             st.session_state.pop(k, None)
         st.rerun()
