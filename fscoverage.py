@@ -76,32 +76,6 @@ st.set_page_config(page_title="Potential Work Orders Management", layout="wide")
 
 # ─────────────── 1) Carga CSV ───────────────
 
-st.markdown("""
-    <style>
-    /* Oculta el texto de "Drag and drop" y el límite */
-    .stFileUploader > div > div:first-child {
-        display: none !important;
-    }
-    .stFileUploader > div > small {
-        display: none !important;
-    }
-
-    /* Reduce tamaño del contenedor */
-    .stFileUploader {
-        padding: 0rem !important;
-        margin: 0rem !important;
-        max-width: 180px;
-    }
-
-    /* Estiliza el botón */
-    .stFileUploader button {
-        padding: 0.4rem 0.8rem;
-        font-size: 0.85rem;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-
 col_geo, col_cov = st.columns([1, 1])
 with col_geo:
     geo_file = st.file_uploader("📍 Georadar CSV", type="csv")
