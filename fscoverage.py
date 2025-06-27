@@ -196,9 +196,28 @@ if "processed" not in st.session_state:
 
 # ───────────────  Controles superiores ───────────────
 
-col_left, col_right = st.columns([1, 1])
+col_left, col_spacer, col_right = st.columns([2, 6, 2])
 
 with col_left:
+    st.markdown(
+        """
+        <div style="display: flex; justify-content: flex-start;">
+            <button style="
+                background-color: transparent;
+                border: 1px solid rgba(250, 250, 250, 0.3);
+                padding: 0.4rem 1rem;
+                font-size: 0.9rem;
+                border-radius: 0.5rem;
+                color: white;
+                cursor: pointer;
+            " onclick="window.location.reload();">
+                🔁 Volver a cargar archivos
+            </button>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
     if st.button("🔁 Volver a cargar archivos"):
         for k in ["processed", "df", "geo_df", "cov_df", "edited_df"]:
             st.session_state.pop(k, None)
