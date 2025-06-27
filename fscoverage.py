@@ -8,6 +8,8 @@ import streamlit as st
 import configparser
 import pydeck as pdk
 
+import streamlit.components.v1 as components
+
 # ─────────────────────────── Config helpers ─────────────────────────────
 
 def _safe_get(cfg, sect, opt, default=""):
@@ -76,11 +78,41 @@ st.set_page_config(page_title="Potential Work Orders Management", layout="wide")
 
 # ─────────────── 1) Carga CSV ───────────────
 
-col_geo, col_cov = st.columns([1, 1])
-with col_geo:
-    geo_file = st.file_uploader("📍 Georadar CSV", type="csv")
-with col_cov:
-    cov_file = st.file_uploader("📶 Coverage CSV", type="csv")
+#col_geo, col_cov = st.columns([1, 1])
+#with col_geo:
+#    geo_file = st.file_uploader("📍 Georadar CSV", type="csv")
+#with col_cov:
+#    cov_file = st.file_uploader("📶 Coverage CSV", type="csv")
+st.markdown("### 📁 Cargar archivos CSV")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    geo_file = st.file_uploader("Georadar CSV", type="csv", label_visibility="collapsed", key="geo_csv")
+with col2:
+    cov_file = st.file_uploader("Coverage CSV", type="csv", label_visibility="collapsed", key="cov_csv")
+
+# CSS para ocultar drag and drop
+st.markdown("""
+<style>
+/* Ocultar área drag-and-drop */
+div[data-testid="stFileDropzone"] {
+    display: none !important;
+}
+
+/* Mostrar solo el botón */
+section[data-testid="stFileUploader"] {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* Ajustar ancho del uploader */
+section[data-testid="stFileUploader"] {
+    width: fit-content !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 # ─────────────── 2) Procesamiento una única vez ───────────────
 if geo_file and cov_file and "processed" not in st.session_state:
