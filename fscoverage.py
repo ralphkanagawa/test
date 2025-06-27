@@ -78,24 +78,29 @@ st.set_page_config(page_title="Potential Work Orders Management", layout="wide")
 
 st.markdown("""
     <style>
-    /* Oculta todo el cuadro de dropzone (incluido ícono y texto) */
-    div[data-testid="stFileUploader"] > div {
-        display: none;
+    /* Oculta el texto de "Drag and drop" y el límite */
+    .stFileUploader > div > div:first-child {
+        display: none !important;
+    }
+    .stFileUploader > div > small {
+        display: none !important;
     }
 
-    /* Muestra solo el botón Browse (input[type=file]) */
-    div[data-testid="stFileUploader"] {
-        border: none;
-        background: none;
-        padding: 0;
-    }
-
-    /* Ajusta ancho máximo del uploader */
-    div[data-testid="stFileUploader"] {
+    /* Reduce tamaño del contenedor */
+    .stFileUploader {
+        padding: 0rem !important;
+        margin: 0rem !important;
         max-width: 180px;
+    }
+
+    /* Estiliza el botón */
+    .stFileUploader button {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.85rem;
     }
     </style>
 """, unsafe_allow_html=True)
+
 
 col_geo, col_cov = st.columns([1, 1])
 with col_geo:
