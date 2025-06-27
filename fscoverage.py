@@ -10,6 +10,7 @@ import pydeck as pdk
 
 import streamlit.components.v1 as components
 
+
 # ─────────────────────────── Config helpers ─────────────────────────────
 
 def _safe_get(cfg, sect, opt, default=""):
@@ -83,35 +84,32 @@ st.set_page_config(page_title="Potential Work Orders Management", layout="wide")
 #    geo_file = st.file_uploader("📍 Georadar CSV", type="csv")
 #with col_cov:
 #    cov_file = st.file_uploader("📶 Coverage CSV", type="csv")
-st.markdown("### 📁 Cargar archivos CSV")
 
-col1, col2 = st.columns(2)
+geo_file_container, cov_file_container = st.columns(2)
 
-with col1:
-    geo_file = st.file_uploader("Georadar CSV", type="csv", label_visibility="collapsed", key="geo_csv")
-with col2:
-    cov_file = st.file_uploader("Coverage CSV", type="csv", label_visibility="collapsed", key="cov_csv")
+with geo_file_container:
+    st.markdown("**📍 Georadar CSV**")
+    components.html("""
+        <input type="file" id="geoFile" accept=".csv" />
+        <script>
+        const input = window.parent.document.querySelector('#geoFile');
+        input.style.marginTop = '8px';
+        input.style.padding = '8px';
+        input.style.fontSize = '14px';
+        </script>
+    """, height=35)
 
-# CSS para ocultar drag and drop
-st.markdown("""
-<style>
-/* Ocultar área drag-and-drop */
-div[data-testid="stFileDropzone"] {
-    display: none !important;
-}
-
-/* Mostrar solo el botón */
-section[data-testid="stFileUploader"] {
-    padding: 0 !important;
-    margin: 0 !important;
-}
-
-/* Ajustar ancho del uploader */
-section[data-testid="stFileUploader"] {
-    width: fit-content !important;
-}
-</style>
-""", unsafe_allow_html=True)
+with cov_file_container:
+    st.markdown("**📶 Coverage CSV**")
+    components.html("""
+        <input type="file" id="covFile" accept=".csv" />
+        <script>
+        const input = window.parent.document.querySelector('#covFile');
+        input.style.marginTop = '8px';
+        input.style.padding = '8px';
+        input.style.fontSize = '14px';
+        </script>
+    """, height=35)
 
 
 # ─────────────── 2) Procesamiento una única vez ───────────────
