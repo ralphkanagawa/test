@@ -75,6 +75,26 @@ st.set_page_config(page_title="Potential Work Orders Management", layout="wide")
 #st.title("Potential Work Orders Management (Streamlit)")
 
 # ─────────────── 1) Carga CSV ───────────────
+
+st.markdown("""
+    <style>
+    /* Oculta el texto de "Drag and drop" */
+    .stFileUploader > div > div {
+        display: none;
+    }
+
+    /* Oculta el texto de límite de tamaño */
+    .stFileUploader > div > small {
+        display: none;
+    }
+
+    /* Ajusta el ancho del botón para hacerlo más compacto */
+    .stFileUploader {
+        width: 200px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 col_geo, col_cov = st.columns(2)
 with col_geo:
     geo_file = st.file_uploader("📍 Georadar CSV", type="csv")
