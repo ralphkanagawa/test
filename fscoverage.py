@@ -195,9 +195,6 @@ if "processed" not in st.session_state:
     st.stop()
 
 # ───────────────  Controles superiores ───────────────
-edited = st.data_editor(
-    st.session_state.edited_df, num_rows="dynamic", use_container_width=True, key="editor"
-)
 
 col_left, col_right = st.columns([1, 1])
 
