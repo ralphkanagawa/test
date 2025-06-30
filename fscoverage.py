@@ -226,9 +226,6 @@ with col_right:
         st.session_state.edited_df = st.session_state.latest_edited.copy()
         st.success("Cambios guardados.")
 
-# Línea divisoria opcional
-st.markdown("---")
-
 # --- Tabla editable ---
 edited = st.data_editor(
     st.session_state.edited_df,
