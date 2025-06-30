@@ -218,11 +218,12 @@ with col_left:
 
 with col_right:
     if st.button("💾 Guardar cambios", key="save_changes_top"):
-        if "editor" in st.session_state and isinstance(st.session_state["editor"], pd.DataFrame):
-            st.session_state.edited_df = st.session_state["editor"].copy()
+        editor_data = st.session_state.get("editor")
+        if isinstance(editor_data, pd.DataFrame):
+            st.session_state.edited_df = editor_data.copy()
             st.success("Cambios guardados.")
         else:
-            st.error("No se pudieron guardar los cambios. Asegúrate de que la tabla esté cargada correctamente.")
+            st.error("No se pudieron guardar los cambios: datos inválidos o no cargados.")
 
 
 # ───────────────  Tabla editable + herramientas ───────────────
@@ -248,6 +249,7 @@ st.data_editor(
     key="editor",
     return_value="edited"
 )
+
 
 
 # ───────────────  Herramientas adicionales ───────────────
