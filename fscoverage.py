@@ -225,18 +225,29 @@ with col_right:
 #st.subheader("📑 Tabla editable")
 
 _template_cols = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
+
+# Preparar dataframe con columnas del template
 disp = st.session_state.df.copy()
 for c in _template_cols:
     if c not in disp.columns:
         disp[c] = ""
-
 disp = disp[_template_cols]
+
+# Cargar solo una vez en sesión
 if "edited_df" not in st.session_state:
     st.session_state.edited_df = disp.copy()
 
+# Mostrar una sola vez el editor
 edited = st.data_editor(
-    st.session_state.edited_df, num_rows="dynamic", use_container_width=True, key="editor"
+    st.session_state.edited_df,
+    num_rows="dynamic",
+    use_container_width=True,
+    key="editor"
 )
+
+# Actualizar sesión con cambios en la tabla
+st.session_state.edited_df = edited.copy()
+
 
 #if st.button("💾 Guardar cambios"):
 #    st.session_state.edited_df = edited.copy()
