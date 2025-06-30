@@ -328,7 +328,7 @@ with col3:
 
 # Preparar datos de georadar con dBm ya calculado en st.session_state.df
 geo_points = (
-    st.session_state.df[[
+    st.session_state.edited_df[[  # ← Aquí usamos el DF editado por el usuario
         "Latitude - Functional Location",
         "Longitude - Functional Location",
         "dBm",
