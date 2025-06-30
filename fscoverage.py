@@ -192,6 +192,31 @@ if "processed" not in st.session_state:
     st.info("⬆️ Sube ambos CSV para continuar")
     st.stop()
 
+# ───────────────  Tabla editable + herramientas ───────────────
+
+_template_cols = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
+disp = st.session_state.df.copy()
+for c in _template_cols:
+    if c not in disp.columns:
+        disp[c] = ""
+
+disp = disp[_template_cols]
+
+# Asegura que 'edited_df' exista antes de usarla
+if "edited_df" not in st.session_state:
+    st.session_state.edited_df = disp.copy()
+
+# Definir la tabla editable (devuelve un DataFrame actualizado en cada render)
+edited = st.data_editor(
+    st.session_state.edited_df,
+    num_rows="dynamic",
+    use_container_width=True,
+    key="editor"
+)
+
+# Guarda una copia sincronizada para usar en los botones
+st.session_state["latest_edited"] = edited.copy()
+
 # ───────────────  Controles superiores ───────────────
 
 # Inyectar estilo una sola vez, fuera de columnas
@@ -208,14 +233,6 @@ st.markdown("""
 # Botones alineados
 col_left, col_spacer, col_right = st.columns([2, 6, 2])
 
-# ✅ AQUÍ defines 'edited', que siempre estará disponible para todos los botones debajo
-edited = st.data_editor(
-    st.session_state.edited_df,
-    num_rows="dynamic",
-    use_container_width=True,
-    key="editor"
-)
-
 with col_left:
     if st.button("🔁 Volver a cargar archivos", key="reload_button"):
         for k in ["processed", "df", "geo_df", "cov_df", "edited_df"]:
@@ -224,25 +241,9 @@ with col_left:
 
 with col_right:
     if st.button("💾 Guardar cambios", key="save_changes_top"):
-        st.session_state.edited_df = edited.copy()
+        st.session_state.edited_df = st.session_state["latest_edited"].copy()
         st.success("Cambios guardados.")
 
-# ───────────────  Tabla editable + herramientas ───────────────
-
-_template_cols = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
-disp = st.session_state.df.copy()
-for c in _template_cols:
-    if c not in disp.columns:
-        disp[c] = ""
-
-disp = disp[_template_cols]
-
-# Asegura que 'edited_df' exista
-if "edited_df" not in st.session_state:
-    st.session_state.edited_df = disp.copy()
-
-# Guarda una copia de trabajo sincronizada
-st.session_state["latest_edited"] = edited.copy()
 
 col1, col2, col3 = st.columns(3)
 
@@ -303,7 +304,7 @@ with col2:
 with col3:
     st.markdown("### 💾 Descargar Excel")
     if st.button("Generar y descargar Excel", key="gen_excel"):
-        df_out = edited.copy()
+        df_out = st.session_state["latest_edited"].copy()
         for c in _template_cols:
             if c not in df_out.columns:
                 df_out[c] = ""
