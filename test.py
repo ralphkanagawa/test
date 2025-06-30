@@ -413,3 +413,5 @@ st.pydeck_chart(
 
 
 st.caption("Desarrollado en Streamlit • Última actualización: 2025-06-30")
+
+st.caption("Desarrollado en Streamlit • Última actualización: 2025-06-30")
