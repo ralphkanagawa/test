@@ -10,9 +10,7 @@ import pydeck as pdk
 
 import streamlit.components.v1 as components
 
-
 # ─────────────────────────── Config helpers ─────────────────────────────
-
 def _safe_get(cfg, sect, opt, default=""):
     try:
         return cfg.get(sect, opt)
@@ -60,7 +58,6 @@ def load_config(
         _safe_get(cfg, "GENERAL", "excel_template_path", "test.xlsx"),
     )
 
-
 # ────────────────────────── Init & session ──────────────────────────────
 if "df" not in st.session_state:
     st.session_state.df = pd.DataFrame()
@@ -75,10 +72,8 @@ if "df" not in st.session_state:
 ) = load_config()
 
 st.set_page_config(page_title="Potential Work Orders Management", layout="wide")
-#st.title("Potential Work Orders Management (Streamlit)")
 
 # ───────────────  Carga CSV ───────────────
-
 geo_file = None
 cov_file = None
 
@@ -138,7 +133,6 @@ if "processed" not in st.session_state:
 else:
     st.markdown("✔️ CSVs cargados y procesados correctamente.")
 
-
 # ───────────────  Procesamiento una única vez ───────────────
 if geo_file and cov_file and "processed" not in st.session_state:
     # Georadar
@@ -188,7 +182,6 @@ if geo_file and cov_file and "processed" not in st.session_state:
     gdf.drop(columns=["LatBin", "LonBin"], inplace=True)
 
     st.session_state.processed = True
-    #st.success("✔ Datos procesados")
 
 if "processed" not in st.session_state:
     st.info("⬆️ Sube ambos CSV para continuar")
@@ -196,7 +189,7 @@ if "processed" not in st.session_state:
 
 # ───────────────  Controles superiores ───────────────
 
-# Inyectar estilo una sola vez, fuera de columnas
+# Inyectar estilo una sola vez
 st.markdown("""
     <style>
     button[kind="primary"] {
@@ -207,44 +200,44 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Botones alineados
-col_left, col_spacer, col_right = st.columns([2, 6, 2])
-
-with col_left:
-    if st.button("🔁 Volver a cargar archivos", key="reload_button"):
-        for k in ["processed", "df", "geo_df", "cov_df", "edited_df"]:
-            st.session_state.pop(k, None)
-        st.rerun()
-
-with col_right:
-    if st.button("💾 Guardar cambios", key="save_changes_top"):
-        st.session_state.edited_df = st.session_state.edited_df.copy()
-        st.success("Cambios guardados.")
-
-
-# ───────────────  Tabla editable + herramientas ───────────────
-#st.subheader("📑 Tabla editable")
-
+# Cargar columnas desde plantilla
 _template_cols = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
 disp = st.session_state.df.copy()
 for c in _template_cols:
     if c not in disp.columns:
         disp[c] = ""
-
 disp = disp[_template_cols]
+
+# Inicializar 'edited_df' si no existe
 if "edited_df" not in st.session_state:
     st.session_state.edited_df = disp.copy()
 
+# --- Botones encima de la tabla ---
+col_left, col_spacer, col_right = st.columns([2, 6, 2])
+
+with col_left:
+    if st.button("🔁 Volver a cargar archivos", key="reload_button"):
+        for k in ["processed", "df", "geo_df", "cov_df", "edited_df", "latest_edited"]:
+            st.session_state.pop(k, None)
+        st.rerun()
+
+with col_right:
+    if st.button("💾 Guardar cambios", key="save_changes_top"):
+        st.session_state.edited_df = st.session_state.latest_edited.copy()
+        st.success("Cambios guardados.")
+
+# --- Tabla editable ---
 edited = st.data_editor(
-    st.session_state.edited_df, num_rows="dynamic", use_container_width=True, key="editor"
+    st.session_state.edited_df,
+    num_rows="dynamic",
+    use_container_width=True,
+    key="editor"
 )
 
-#if st.button("💾 Guardar cambios"):
-#    st.session_state.edited_df = edited.copy()
-#    st.success("Cambios guardados.")
+# Guardar copia para posterior uso
+st.session_state.latest_edited = edited.copy()
 
 
-#st.markdown("### 🧰 Herramientas adicionales")
 col1, col2, col3 = st.columns(3)
 
 # --- Añadir datos en bloque ---
@@ -325,8 +318,6 @@ with col3:
 
 
 # ───────────────  Mapa georadar y cobertura ───────────────
-#st.subheader("🗺️ Mapa georadar y cobertura")
-
 # Preparar datos de georadar con dBm ya calculado en st.session_state.df
 geo_points = (
     st.session_state.edited_df[[  # ← Aquí usamos el DF editado por el usuario
@@ -347,7 +338,6 @@ geo_points.rename(
 )
 
 # Asignar color según cobertura
-
 def color_from_dbm(v: float | None):
     if pd.isna(v):
         return [255, 255, 255]  # gris si no hay valor
@@ -416,7 +406,6 @@ tooltip = {
 }
 
 #st.pydeck_chart(pdk.Deck(layers=layers, initial_view_state=init_view_state, tooltip=tooltip))
-
 st.pydeck_chart(
     pdk.Deck(layers=layers, initial_view_state=init_view_state, tooltip=tooltip),
     height=900  # puedes ajustar a 800, 900 si quieres más espacio
