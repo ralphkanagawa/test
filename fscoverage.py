@@ -219,7 +219,6 @@ st.session_state["latest_edited"] = edited.copy()
 
 # ───────────────  Controles superiores ───────────────
 
-# Inyectar estilo para botones
 st.markdown("""
     <style>
     button[kind="primary"] {
@@ -229,8 +228,6 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
-
-# ───────────────  Tabla editable + botones ENCIMA ───────────────
 
 _template_cols = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
 disp = st.session_state.df.copy()
@@ -255,12 +252,12 @@ with btn_col2:
         st.session_state.edited_df = st.session_state["latest_edited"].copy()
         st.success("Cambios guardados.")
 
-# Editor de tabla
+# Solo UNA instancia de data_editor
 edited = st.data_editor(
     st.session_state.edited_df,
     num_rows="dynamic",
     use_container_width=True,
-    key="editor"
+    key="editor"  # clave única
 )
 
 st.session_state["latest_edited"] = edited.copy()
