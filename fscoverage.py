@@ -219,7 +219,7 @@ st.session_state["latest_edited"] = edited.copy()
 
 # ───────────────  Controles superiores ───────────────
 
-# Inyectar estilo una sola vez, fuera de columnas
+# Inyectar estilo para botones
 st.markdown("""
     <style>
     button[kind="primary"] {
@@ -230,20 +230,43 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Botones alineados
+# Botón "Volver a cargar archivos"
 col_left, col_spacer, col_right = st.columns([2, 6, 2])
-
 with col_left:
     if st.button("🔁 Volver a cargar archivos", key="reload_button"):
         for k in ["processed", "df", "geo_df", "cov_df", "edited_df"]:
             st.session_state.pop(k, None)
         st.rerun()
 
+# ───────────────  Tabla editable + botón GUARDAR encima ───────────────
+
+_template_cols = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
+disp = st.session_state.df.copy()
+for c in _template_cols:
+    if c not in disp.columns:
+        disp[c] = ""
+disp = disp[_template_cols]
+
+# Asegura que existe edited_df antes de usar
+if "edited_df" not in st.session_state:
+    st.session_state.edited_df = disp.copy()
+
+# Mostramos botón "Guardar cambios" encima de la tabla
 with col_right:
     if st.button("💾 Guardar cambios", key="save_changes_top"):
         st.session_state.edited_df = st.session_state["latest_edited"].copy()
         st.success("Cambios guardados.")
 
+# Editor de tabla
+edited = st.data_editor(
+    st.session_state.edited_df,
+    num_rows="dynamic",
+    use_container_width=True,
+    key="editor"
+)
+
+# Guardar copia en session_state
+st.session_state["latest_edited"] = edited.copy()
 
 col1, col2, col3 = st.columns(3)
 
