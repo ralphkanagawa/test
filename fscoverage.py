@@ -241,6 +241,9 @@ edited = st.data_editor(
 
 st.session_state.edited_df = edited.copy()
 
+st.rerun()
+
+
 #if st.button("💾 Guardar cambios"):
 #    st.session_state.edited_df = edited.copy()
 #    st.success("Cambios guardados.")
