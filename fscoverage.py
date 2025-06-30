@@ -218,9 +218,8 @@ with col_left:
 
 with col_right:
     if st.button("💾 Guardar cambios", key="save_changes_top"):
-        st.session_state.edited_df = st.session_state.edited_df.copy()
+        st.session_state.edited_df = st.session_state.get("editor", st.session_state.edited_df.copy())
         st.success("Cambios guardados.")
-
 
 # ───────────────  Tabla editable + herramientas ───────────────
 #st.subheader("📑 Tabla editable")
@@ -304,7 +303,7 @@ with col2:
 with col3:
     st.markdown("### 💾 Descargar Excel")
     if st.button("Generar y descargar Excel", key="gen_excel"):
-        df_out = st.session_state.edited_df.copy()
+        df_out = st.session_state.get("editor", st.session_state.edited_df.copy())
         for c in _template_cols:
             if c not in df_out.columns:
                 df_out[c] = ""
