@@ -208,6 +208,14 @@ st.markdown("""
 # Botones alineados
 col_left, col_spacer, col_right = st.columns([2, 6, 2])
 
+# ✅ AQUÍ defines 'edited', que siempre estará disponible para todos los botones debajo
+edited = st.data_editor(
+    st.session_state.edited_df,
+    num_rows="dynamic",
+    use_container_width=True,
+    key="editor"
+)
+
 with col_left:
     if st.button("🔁 Volver a cargar archivos", key="reload_button"):
         for k in ["processed", "df", "geo_df", "cov_df", "edited_df"]:
@@ -232,14 +240,6 @@ disp = disp[_template_cols]
 # Asegura que 'edited_df' exista
 if "edited_df" not in st.session_state:
     st.session_state.edited_df = disp.copy()
-
-# ✅ AQUÍ defines 'edited', que siempre estará disponible para todos los botones debajo
-edited = st.data_editor(
-    st.session_state.edited_df,
-    num_rows="dynamic",
-    use_container_width=True,
-    key="editor"
-)
 
 # Guarda una copia de trabajo sincronizada
 st.session_state["latest_edited"] = edited.copy()
