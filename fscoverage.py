@@ -75,7 +75,6 @@ if "df" not in st.session_state:
 ) = load_config()
 
 st.set_page_config(page_title="Potential Work Orders Management", layout="wide")
-#st.title("Potential Work Orders Management (Streamlit)")
 
 # ───────────────  Carga CSV ───────────────
 
@@ -188,7 +187,6 @@ if geo_file and cov_file and "processed" not in st.session_state:
     gdf.drop(columns=["LatBin", "LonBin"], inplace=True)
 
     st.session_state.processed = True
-    #st.success("✔ Datos procesados")
 
 if "processed" not in st.session_state:
     st.info("⬆️ Sube ambos CSV para continuar")
@@ -222,7 +220,6 @@ with col_right:
         st.success("Cambios guardados.")
 
 # ───────────────  Tabla editable + herramientas ───────────────
-#st.subheader("📑 Tabla editable")
 
 _template_cols = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
 disp = st.session_state.df.copy()
@@ -231,10 +228,12 @@ for c in _template_cols:
         disp[c] = ""
 
 disp = disp[_template_cols]
+
+# Asegura que 'edited_df' exista
 if "edited_df" not in st.session_state:
     st.session_state.edited_df = disp.copy()
 
-# Colocamos aquí para que esté siempre disponible
+# ✅ AQUÍ defines 'edited', que siempre estará disponible para todos los botones debajo
 edited = st.data_editor(
     st.session_state.edited_df,
     num_rows="dynamic",
@@ -242,12 +241,9 @@ edited = st.data_editor(
     key="editor"
 )
 
-#if st.button("💾 Guardar cambios"):
-#    st.session_state.edited_df = edited.copy()
-#    st.success("Cambios guardados.")
+# Guarda una copia de trabajo sincronizada
+st.session_state["latest_edited"] = edited.copy()
 
-
-#st.markdown("### 🧰 Herramientas adicionales")
 col1, col2, col3 = st.columns(3)
 
 # --- Añadir datos en bloque ---
@@ -328,8 +324,6 @@ with col3:
 
 
 # ───────────────  Mapa georadar y cobertura ───────────────
-#st.subheader("🗺️ Mapa georadar y cobertura")
-
 # Preparar datos de georadar con dBm ya calculado en st.session_state.df
 geo_points = (
     st.session_state.edited_df[[  # ← Aquí usamos el DF editado por el usuario
@@ -418,12 +412,9 @@ tooltip = {
     "style": {"color": "white"},
 }
 
-#st.pydeck_chart(pdk.Deck(layers=layers, initial_view_state=init_view_state, tooltip=tooltip))
-
 st.pydeck_chart(
     pdk.Deck(layers=layers, initial_view_state=init_view_state, tooltip=tooltip),
     height=900  # puedes ajustar a 800, 900 si quieres más espacio
 )
-
 
 st.caption("Desarrollado en Streamlit • Última actualización: 2025-06-30")
