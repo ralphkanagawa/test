@@ -220,15 +220,15 @@ disp = disp[_template_cols]
 if "edited_df" not in st.session_state:
     st.session_state.edited_df = disp.copy()
 
-# Render del editor: aquí se define `edited`
+# Render del editor: este es el único st.data_editor con key="main_editor"
 edited = st.data_editor(
     st.session_state.edited_df,
     num_rows="dynamic",
     use_container_width=True,
-    key="editor"
+    key="main_editor"  # cambiamos el key para evitar duplicidad
 )
 
-# Guardar cambios después de que `edited` existe
+# Botones alineados (mover aquí para asegurar orden correcto)
 col_left, col_spacer, col_right = st.columns([2, 6, 2])
 
 with col_left:
@@ -243,13 +243,14 @@ with col_right:
         st.session_state.save_success_time = datetime.now()
         st.rerun()
 
-# Mostrar mensaje temporal si corresponde
+# Mostrar mensaje temporal si aplica
 if "save_success_time" in st.session_state:
     elapsed = datetime.now() - st.session_state.save_success_time
     if elapsed.total_seconds() < 2:
         st.success("Cambios guardados.")
     else:
         del st.session_state.save_success_time
+
 
 # ───────────────  Tabla editable + herramientas ───────────────
 #st.subheader("📑 Tabla editable")
