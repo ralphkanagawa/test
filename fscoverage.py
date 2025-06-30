@@ -245,11 +245,6 @@ edited = st.data_editor(
     key="editor"
 )
 
-# Botón para guardar manualmente los cambios
-if st.button("💾 Guardar cambios en la tabla"):
-    st.session_state.edited_df = edited.copy()
-    st.success("Cambios guardados correctamente.")
-
 # ───────────────  Herramientas adicionales ───────────────
 col1, col2, col3 = st.columns(3)
 
