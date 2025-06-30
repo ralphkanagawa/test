@@ -222,7 +222,6 @@ with col_right:
         st.success("Cambios guardados.")
 
 # ───────────────  Tabla editable + herramientas ───────────────
-#st.subheader("📑 Tabla editable")
 
 _template_cols = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
 
@@ -233,11 +232,11 @@ for c in _template_cols:
         disp[c] = ""
 disp = disp[_template_cols]
 
-# Cargar solo una vez en sesión
+# Inicializar el dataframe editable una única vez
 if "edited_df" not in st.session_state:
     st.session_state.edited_df = disp.copy()
 
-# Mostrar una sola vez el editor
+# Mostrar una única tabla editable
 edited = st.data_editor(
     st.session_state.edited_df,
     num_rows="dynamic",
@@ -245,16 +244,12 @@ edited = st.data_editor(
     key="editor"
 )
 
-# Actualizar sesión con cambios en la tabla
-st.session_state.edited_df = edited.copy()
+# Botón para guardar manualmente los cambios
+if st.button("💾 Guardar cambios en la tabla"):
+    st.session_state.edited_df = edited.copy()
+    st.success("Cambios guardados correctamente.")
 
-
-#if st.button("💾 Guardar cambios"):
-#    st.session_state.edited_df = edited.copy()
-#    st.success("Cambios guardados.")
-
-
-#st.markdown("### 🧰 Herramientas adicionales")
+# ───────────────  Herramientas adicionales ───────────────
 col1, col2, col3 = st.columns(3)
 
 # --- Añadir datos en bloque ---
@@ -285,54 +280,7 @@ with col1:
 # --- Autocompletar fechas/horas ---
 with col2:
     st.markdown("### ⏱️ Autocompletar fechas/horas")
-    d0 = st.date_input("Fecha inicial", value=date.today(), key="fecha_ini")
-    t0 = st.time_input("Hora inicial", value=datetime.now().time().replace(second=0, microsecond=0), key="hora_ini")
-    if st.button("🕒 Generar 27 min", key="gen_27min"):
-        start_dt = datetime.combine(d0, t0)
-        incs = [start_dt + timedelta(minutes=27 * i) for i in range(len(st.session_state.edited_df))]
-
-        full = [
-            "Promised window From - Work Order",
-            "Promised window To - Work Order",
-            "StartTime - Bookable Resource Booking",
-            "EndTime - Bookable Resource Booking",
-        ]
-        time_only = [
-            "Time window From - Work Order",
-            "Time window To - Work Order",
-        ]
-        for c in full:
-            if c in st.session_state.edited_df.columns:
-                st.session_state.edited_df[c] = incs
-        for c in time_only:
-            if c in st.session_state.edited_df.columns:
-                st.session_state.edited_df[c] = [d.time().strftime("%H:%M:%S") for d in incs]
-        st.success("Columnas temporales rellenadas.")
-        st.rerun()
-
-# --- Descargar Excel ---
-with col3:
-    st.markdown("### 💾 Descargar Excel")
-    if st.button("Generar y descargar Excel", key="gen_excel"):
-        df_out = st.session_state.edited_df.copy()
-        for c in _template_cols:
-            if c not in df_out.columns:
-                df_out[c] = ""
-        df_out = df_out[_template_cols]
-
-        buf = io.BytesIO()
-        with pd.ExcelWriter(buf, engine="openpyxl") as w:
-            df_out.to_excel(w, index=False)
-        buf.seek(0)
-
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        st.download_button(
-            "⬇️ Descargar Excel",
-            data=buf,
-            file_name=f"workorders_{ts}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-
+    d0 = st.date_input("Fecha_
 
 # ───────────────  Mapa georadar y cobertura ───────────────
 #st.subheader("🗺️ Mapa georadar y cobertura")
