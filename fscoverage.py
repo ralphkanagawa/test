@@ -375,28 +375,9 @@ cov_points.rename(
 )
 cov_points["color"] = [[128, 128, 128]] * len(cov_points)  # gris fijo
 
-# Layers de PyDeck (doble capa: puntos grandes y pequeños)
+# Layers de PyDeck
 layers = [
-    # Capa de puntos grandes para visibilidad a gran escala (zoom-out)
-    pdk.Layer(
-        "ScatterplotLayer",
-        data=geo_points,
-        get_position="[lon, lat]",
-        get_radius=20,  # mayor tamaño para zoom-out
-        get_fill_color="[200, 200, 200, 100]",  # gris claro semitransparente
-        opacity=0.3,
-        pickable=False,
-    ),
-    # Capa de puntos georadar con color por dBm (zoom-in)
-    pdk.Layer(
-        "ScatterplotLayer",
-        data=geo_points,
-        get_position="[lon, lat]",
-        get_radius=3,  # tamaño más pequeño
-        get_fill_color="color",
-        pickable=True,
-    ),
-    # Capa de cobertura (opcional, como ya tenías)
+    # Capa de puntos de cobertura (gris, menor radio)
     pdk.Layer(
         "ScatterplotLayer",
         data=cov_points,
@@ -407,8 +388,16 @@ layers = [
         pickable=True,
         tooltip=True,
     ),
+    # Capa de puntos georadar con color por dBm
+    pdk.Layer(
+        "ScatterplotLayer",
+        data=geo_points,
+        get_position="[lon, lat]",
+        get_radius=2,
+        get_fill_color="color",
+        pickable=True,
+    ),
 ]
-
 
 # Vista inicial (centrada en la media de los puntos georadar)
 if not geo_points.empty:
