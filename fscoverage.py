@@ -208,11 +208,32 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Botones alineados
+# ───────────────  Tabla editable + herramientas ───────────────
+
+_template_cols = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
+disp = st.session_state.df.copy()
+for c in _template_cols:
+    if c not in disp.columns:
+        disp[c] = ""
+
+disp = disp[_template_cols]
+if "edited_df" not in st.session_state:
+    st.session_state.edited_df = disp.copy()
+
+# Render del editor: aquí se define `edited`
+edited = st.data_editor(
+    st.session_state.edited_df,
+    num_rows="dynamic",
+    use_container_width=True,
+    key="editor"
+)
+
+# Guardar cambios después de que `edited` existe
 col_left, col_spacer, col_right = st.columns([2, 6, 2])
 
 with col_left:
     if st.button("🔁 Volver a cargar archivos", key="reload_button"):
-        for k in ["processed", "df", "geo_df", "cov_df", "edited_df"]:
+        for k in ["processed", "df", "geo_df", "cov_df", "edited_df", "save_success_time"]:
             st.session_state.pop(k, None)
         st.rerun()
 
@@ -222,7 +243,7 @@ with col_right:
         st.session_state.save_success_time = datetime.now()
         st.rerun()
 
-# Mostrar mensaje temporal
+# Mostrar mensaje temporal si corresponde
 if "save_success_time" in st.session_state:
     elapsed = datetime.now() - st.session_state.save_success_time
     if elapsed.total_seconds() < 2:
