@@ -218,41 +218,33 @@ with col_left:
 
 with col_right:
     if st.button("💾 Guardar cambios", key="save_changes_top"):
-        editor_data = st.session_state.get("editor")
-        if isinstance(editor_data, pd.DataFrame):
-            st.session_state.edited_df = editor_data.copy()
-            st.success("Cambios guardados.")
-        else:
-            st.error("No se pudieron guardar los cambios: datos inválidos o no cargados.")
+        st.session_state.edited_df = st.session_state.edited_df.copy()
+        st.success("Cambios guardados.")
 
 
 # ───────────────  Tabla editable + herramientas ───────────────
+#st.subheader("📑 Tabla editable")
 
 _template_cols = load_excel_template_columns(EXCEL_TEMPLATE_PATH)
-
-# Preparar dataframe con columnas del template
 disp = st.session_state.df.copy()
 for c in _template_cols:
     if c not in disp.columns:
         disp[c] = ""
-disp = disp[_template_cols]
 
-# Inicializar el dataframe editable una única vez
+disp = disp[_template_cols]
 if "edited_df" not in st.session_state:
     st.session_state.edited_df = disp.copy()
 
-# Mostrar una única tabla editable
-st.data_editor(
-    st.session_state.edited_df,
-    num_rows="dynamic",
-    use_container_width=True,
-    key="editor",
-    return_value="edited"
+edited = st.data_editor(
+    st.session_state.edited_df, num_rows="dynamic", use_container_width=True, key="editor"
 )
 
+#if st.button("💾 Guardar cambios"):
+#    st.session_state.edited_df = edited.copy()
+#    st.success("Cambios guardados.")
 
 
-# ───────────────  Herramientas adicionales ───────────────
+#st.markdown("### 🧰 Herramientas adicionales")
 col1, col2, col3 = st.columns(3)
 
 # --- Añadir datos en bloque ---
