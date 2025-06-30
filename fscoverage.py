@@ -218,9 +218,8 @@ with col_left:
 
 with col_right:
     if st.button("💾 Guardar cambios", key="save_changes_top"):
-        st.session_state.edited_df = st.session_state["editor"].copy()
+        st.session_state.edited_df = edited.copy()
         st.success("Cambios guardados.")
-
 
 # ───────────────  Tabla editable + herramientas ───────────────
 
@@ -242,7 +241,8 @@ edited = st.data_editor(
     st.session_state.edited_df,
     num_rows="dynamic",
     use_container_width=True,
-    key="editor"
+    key="editor",
+    return_value="edited"
 )
 
 # ───────────────  Herramientas adicionales ───────────────
