@@ -221,7 +221,6 @@ with col_right:
         st.session_state.edited_df = st.session_state.edited_df.copy()
         st.success("Cambios guardados.")
 
-
 # ───────────────  Tabla editable + herramientas ───────────────
 #st.subheader("📑 Tabla editable")
 
