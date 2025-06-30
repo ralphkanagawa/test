@@ -218,8 +218,12 @@ with col_left:
 
 with col_right:
     if st.button("💾 Guardar cambios", key="save_changes_top"):
-        st.session_state.edited_df = edited.copy()
-        st.success("Cambios guardados.")
+        if "editor" in st.session_state and isinstance(st.session_state["editor"], pd.DataFrame):
+            st.session_state.edited_df = st.session_state["editor"].copy()
+            st.success("Cambios guardados.")
+        else:
+            st.error("No se pudieron guardar los cambios. Asegúrate de que la tabla esté cargada correctamente.")
+
 
 # ───────────────  Tabla editable + herramientas ───────────────
 
@@ -237,13 +241,14 @@ if "edited_df" not in st.session_state:
     st.session_state.edited_df = disp.copy()
 
 # Mostrar una única tabla editable
-edited = st.data_editor(
+st.data_editor(
     st.session_state.edited_df,
     num_rows="dynamic",
     use_container_width=True,
     key="editor",
     return_value="edited"
 )
+
 
 # ───────────────  Herramientas adicionales ───────────────
 col1, col2, col3 = st.columns(3)
