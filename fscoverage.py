@@ -10,7 +10,7 @@ import pydeck as pdk
 
 import streamlit.components.v1 as components
 
-# ─────────────────────────── Config helpers ─────────────────────────────
+# ─────────────────────────── Config helpers ───────────────────────────── #
 def _safe_get(cfg, sect, opt, default=""):
     try:
         return cfg.get(sect, opt)
